@@ -1,8 +1,10 @@
 FROM golang:1.27-alpine AS build
 WORKDIR /src
-COPY go.mod go.sum ./
+
+COPY services/token /src/services/token
+COPY services/org-directory /src/services/org-directory
+WORKDIR /src/services/org-directory
 RUN go mod download
-COPY . .
 RUN CGO_ENABLED=0 go build -o /server ./cmd/server
 
 FROM alpine:3.20
