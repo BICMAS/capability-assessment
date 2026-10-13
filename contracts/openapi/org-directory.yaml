@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: Org directory
+  version: 0.1.0
+  description: Organisations, departments, people, manager links, and role assignments. Every read and write is scoped by the caller's organisation.
+servers:
+  - url: http://localhost:8083
+paths:
+  /departments:
+    get:
+      operationId: listDepartments
+      summary: List departments in the caller's organisation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin role required
+  /people:
+    get:
+      operationId: listPeople
+      summary: List people in the caller's organisation
+      description: Admins receive every person. Managers receive only people in managerOf. Employees cannot list people.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: People
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin or manager role required
+  /people/{personId}:
+    get:
+      operationId: readPerson
+      summary: Read one person in the caller's organisation
+      description: An employee can read only their own profile. A manager can read people in managerOf. An admin can read anyone in the organisation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Not allowed to read this profile
+        "404":
+          description: Person not found in this organisation
+  /profile:
+    get:
+      operationId: readProfile
+      summary: Read the signed-in person's profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Own profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Missing or invalid token
+        "404":
+          description: Person not found in this organisation
+  /role-assignments:
+    get:
+      operationId: listRoleAssignments
+      summary: List role assignments in the caller's organisation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Role assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleAssignment"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin role required
+    post:
+      operationId: createRoleAssignment
+      summary: Assign a role and publish assignment.changed
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleAssignment"
+      responses:
+        "201":
+          description: Created role assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignment"
+        "400":
+          description: Unknown person or invalid body
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin role required
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Department:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+    Person:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name, departmentName]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+        departmentName:
+          type: string
+    RoleTitle:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name, departmentName, roles]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+        departmentName:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleTitle"
+    RoleAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, personId, personName, title, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        personId:
+          type: string
+        personName:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CreateRoleAssignment:
+      type: object
+      additionalProperties: false
+      required: [personId, title]
+      properties:
+        personId:
+          type: string
+        title:
+          type: string

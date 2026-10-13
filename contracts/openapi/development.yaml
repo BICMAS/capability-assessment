@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: development
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: Service is ready
+  /course-mappings:
+    post:
+      operationId: mapCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseMappingInput"
+      responses:
+        "201":
+          description: Course mapped to a capability and target level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseMapping"
+        "400":
+          description: Invalid mapping
+        "403":
+          description: Admin role required
+  /pathways:
+    post:
+      operationId: createPathway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePathway"
+      responses:
+        "201":
+          description: Pathway created, or the existing pathway returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pathway"
+        "403":
+          description: Caller cannot create this pathway
+        "404":
+          description: No course mapping for the capability and target level
+    get:
+      operationId: readPathway
+      parameters:
+        - name: personId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: capabilityId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pathway for the person and capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pathway"
+        "403":
+          description: Caller cannot read this pathway
+        "404":
+          description: No pathway
+  /webhooks/completions:
+    post:
+      operationId: completeLearning
+      parameters:
+        - name: X-Learning-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletionWebhook"
+      responses:
+        "200":
+          description: Learn item completed, or the existing completion returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pathway"
+        "401":
+          description: Signature does not match the body
+components:
+  schemas:
+    CourseMappingInput:
+      type: object
+      additionalProperties: false
+      required: [externalCourseId, capabilityId, targetLevel, title]
+      properties:
+        externalCourseId:
+          type: string
+          minLength: 1
+        capabilityId:
+          type: string
+          minLength: 1
+        targetLevel:
+          type: integer
+          minimum: 0
+          maximum: 4
+        title:
+          type: string
+          minLength: 1
+    CourseMapping:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, externalCourseId, capabilityId, targetLevel, title]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        externalCourseId:
+          type: string
+        capabilityId:
+          type: string
+        targetLevel:
+          type: integer
+        title:
+          type: string
+    CreatePathway:
+      type: object
+      additionalProperties: false
+      required: [personId, capabilityId, targetLevel]
+      properties:
+        personId:
+          type: string
+        capabilityId:
+          type: string
+        targetLevel:
+          type: integer
+          minimum: 0
+          maximum: 4
+    PlanItem:
+      type: object
+      additionalProperties: false
+      required: [id, stage, title, status, deepLink]
+      properties:
+        id:
+          type: string
+        stage:
+          type: string
+          enum: [learn, practise, apply, validate]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [ready, complete, upcoming]
+        deepLink:
+          type: string
+          nullable: true
+    Pathway:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, personId, capabilityId, targetLevel, items]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        personId:
+          type: string
+        capabilityId:
+          type: string
+        targetLevel:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItem"
+    CompletionWebhook:
+      type: object
+      additionalProperties: false
+      required: [organisationId, personId, planItemId, completedAt]
+      properties:
+        organisationId:
+          type: string
+        personId:
+          type: string
+        planItemId:
+          type: string
+        completedAt:
+          type: string
+          format: date-time

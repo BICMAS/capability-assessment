@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: Notify
+  version: 0.1.0
+  description: In-app inbox for a person. Email delivery is not implemented.
+servers:
+  - url: http://localhost:8082
+paths:
+  /inbox:
+    get:
+      operationId: listInbox
+      summary: List the signed-in person's in-app inbox
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: In-app inbox items for the authenticated person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inbox"
+        "401":
+          description: Missing or invalid token
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Inbox:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InboxItem"
+    InboxItem:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, personId, title, body, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        personId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

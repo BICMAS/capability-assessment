@@ -1,0 +1,13 @@
+go 1.27
+
+use (
+	.
+	./services/assessment-gap
+	./services/audit
+	./services/capability-framework
+	./services/development
+	./services/gateway
+	./services/notify
+	./services/org-directory
+	./services/token
+)

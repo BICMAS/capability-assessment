@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:assignment.changed",
+  "title": "assignment.changed",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "personId", "roleAssignmentId", "occurredAt"],
+  "properties": {
+    "type": { "const": "assignment.changed" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "personId": { "type": "string", "minLength": 1 },
+    "roleAssignmentId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

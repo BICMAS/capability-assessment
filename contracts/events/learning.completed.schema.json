@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:learning.completed",
+  "title": "learning.completed",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "personId", "planItemId", "occurredAt"],
+  "properties": {
+    "type": { "const": "learning.completed" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "personId": { "type": "string", "minLength": 1 },
+    "planItemId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

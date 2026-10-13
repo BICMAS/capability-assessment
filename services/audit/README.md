@@ -1,0 +1,1 @@
+The audit service owns append-only, organisation-scoped records of who performed an action, which entity it affected, and when. It stores `person.signed_in` events and exposes no update or delete API.

@@ -1,0 +1,1 @@
+The web app is the Next.js App Router shell for the admin, employee, and manager portals. It will render data returned by the Go services and will not calculate levels, publish frameworks, or store evidence.

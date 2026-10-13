@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: assessment-gap
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: Service is ready
+  /attempts:
+    post:
+      operationId: recordAttempt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAttempt"
+      responses:
+        "201":
+          description: Attempt stored and the level recalculated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Explanation"
+        "400":
+          description: Invalid attempt, or a source that has no writer
+        "403":
+          description: Caller cannot record this attempt
+  /levels:
+    get:
+      operationId: readLevel
+      parameters:
+        - name: personId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: frameworkVersionId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: capabilityCode
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Calculated level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Explanation"
+        "404":
+          description: No explanation exists
+  /levels/{levelId}/overrides:
+    post:
+      operationId: overrideLevel
+      parameters:
+        - name: levelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOverride"
+      responses:
+        "201":
+          description: Manager override stored and audited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Override"
+        "403":
+          description: Caller is not the person's manager
+components:
+  schemas:
+    RecordAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - personId
+        - frameworkVersionId
+        - capabilityCode
+        - source
+        - percentage
+        - evidenceIds
+        - requiredLevel
+      properties:
+        personId:
+          type: string
+        frameworkVersionId:
+          type: string
+        capabilityCode:
+          type: string
+        source:
+          type: string
+          enum:
+            - knowledge
+            - situational_judgement
+            - self_assessment
+            - manager_assessment
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        evidenceIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        requiredLevel:
+          type: number
+          minimum: 0
+          maximum: 4
+    Explanation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organisationId
+        - personId
+        - frameworkVersionId
+        - capabilityCode
+        - mean
+        - divisor
+        - requiredLevel
+        - currentLevel
+        - gap
+        - status
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        personId:
+          type: string
+        frameworkVersionId:
+          type: string
+        capabilityCode:
+          type: string
+        knowledgePercentage:
+          type: integer
+          nullable: true
+        situationalJudgementPercentage:
+          type: integer
+          nullable: true
+        aiInterviewPercentage:
+          type: integer
+          nullable: true
+        simulationPercentage:
+          type: integer
+          nullable: true
+        managerAssessmentPercentage:
+          type: integer
+          nullable: true
+        selfAssessmentPercentage:
+          type: integer
+          nullable: true
+        mean:
+          type: string
+        divisor:
+          type: integer
+        requiredLevel:
+          type: string
+        currentLevel:
+          type: string
+        gap:
+          type: string
+        status:
+          type: string
+          enum:
+            - provisional
+            - verified
+    CreateOverride:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+        - newValue
+      properties:
+        reason:
+          type: string
+          minLength: 1
+        newValue:
+          type: number
+          minimum: 0
+          maximum: 4
+    Override:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organisationId
+        - explanationId
+        - actorPersonId
+        - reason
+        - previousValue
+        - newValue
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        explanationId:
+          type: string
+        actorPersonId:
+          type: string
+        reason:
+          type: string
+        previousValue:
+          type: string
+        newValue:
+          type: string

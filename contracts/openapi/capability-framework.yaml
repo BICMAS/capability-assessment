@@ -1,0 +1,583 @@
+openapi: 3.0.3
+info:
+  title: Capability framework
+  version: 0.1.0
+  description: Versioned capability frameworks. Published versions are immutable. Editing a published version inserts the next draft.
+servers:
+  - url: http://localhost:8084
+paths:
+  /frameworks:
+    post:
+      operationId: createFrameworkDraft
+      summary: Create a framework and its first draft version
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFramework"
+      responses:
+        "201":
+          description: Draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin role required
+  /framework-versions:
+    get:
+      operationId: listFrameworkVersions
+      summary: List framework versions in the caller's organisation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Framework versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FrameworkVersion"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Admin role required
+  /framework-versions/{versionId}:
+    get:
+      operationId: readFrameworkVersion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Framework version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "404":
+          description: Version not found in this organisation
+    patch:
+      operationId: patchFrameworkRole
+      summary: Rename a role on a draft version
+      description: A published version rejects the patch and stays unchanged.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchRole"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "409":
+          description: Published version cannot be changed
+  /framework-versions/{versionId}/publish:
+    post:
+      operationId: publishFrameworkVersion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Published version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "409":
+          description: Version is already published or a proposal is still pending
+  /published-frameworks:
+    get:
+      operationId: listPublishedFrameworks
+      summary: Read published framework versions in the caller's organisation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Published framework versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FrameworkVersion"
+  /framework-versions/{versionId}/approve:
+    post:
+      operationId: approveFrameworkVersion
+      summary: Approve a draft or in-review version when no proposal is pending
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Approved version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "409":
+          description: A proposal is still pending, or the version is immutable
+  /framework-versions/{versionId}/indicators/{indicatorId}:
+    patch:
+      operationId: updateBehaviouralIndicator
+      summary: Save a behavioural indicator on an editable version
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+        - $ref: "#/components/parameters/indicatorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIndicator"
+      responses:
+        "200":
+          description: Updated indicator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Indicator"
+        "409":
+          description: Published version cannot be changed
+  /framework-versions/{versionId}/next-draft:
+    post:
+      operationId: createNextFrameworkDraft
+      summary: Insert the next draft from a version without changing the source
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "201":
+          description: New draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+  /framework-versions/{versionId}/roles:
+    post:
+      operationId: addFrameworkRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRole"
+      responses:
+        "201":
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "409":
+          description: Published version cannot be changed
+  /framework-versions/{versionId}/capabilities:
+    post:
+      operationId: addFrameworkCapability
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCapability"
+      responses:
+        "201":
+          description: Capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capability"
+  /framework-versions/{versionId}/requirements:
+    post:
+      operationId: addRoleCapabilityRequirement
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequirement"
+      responses:
+        "201":
+          description: Requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Requirement"
+  /framework-versions/{versionId}/indicators:
+    post:
+      operationId: addBehaviouralIndicator
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIndicator"
+      responses:
+        "201":
+          description: Behavioural indicator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Indicator"
+  /imports:
+    post:
+      operationId: importFrameworkCsv
+      summary: Store a capability CSV and create a draft with review proposals
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Draft created from valid rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: Required columns are missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportError"
+        "422":
+          description: No valid rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+  /framework-versions/{versionId}/in-review:
+    post:
+      operationId: submitFrameworkForReview
+      summary: Move a draft to in_review when no proposal is pending
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Version in review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrameworkVersion"
+        "409":
+          description: A proposal is still pending, or the version is immutable
+  /framework-versions/{versionId}/proposals/{proposalId}:
+    post:
+      operationId: decideReviewProposal
+      summary: Accept, edit, or reject a pending proposal
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+        - $ref: "#/components/parameters/proposalId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideProposal"
+      responses:
+        "200":
+          description: Updated proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proposal"
+        "409":
+          description: Published version cannot be changed
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    versionId:
+      name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+    proposalId:
+      name: proposalId
+      in: path
+      required: true
+      schema:
+        type: string
+    indicatorId:
+      name: indicatorId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    FrameworkVersion:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, frameworkId, frameworkName, versionNumber, status, roles, capabilities, requirements, rowErrors, proposals]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        frameworkId:
+          type: string
+        frameworkName:
+          type: string
+        versionNumber:
+          type: integer
+        status:
+          type: string
+          enum: [draft, in_review, approved, published, retired]
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Capability"
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Requirement"
+        rowErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+        proposals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Proposal"
+    Proposal:
+      type: object
+      additionalProperties: false
+      required: [id, kind, status, capabilityCode, message]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [duplicate_capability_code, missing_required_level]
+        status:
+          type: string
+          enum: [pending, accepted, edited, rejected]
+        capabilityCode:
+          type: string
+        message:
+          type: string
+    RowError:
+      type: object
+      additionalProperties: false
+      required: [row, message]
+      properties:
+        row:
+          type: integer
+        message:
+          type: string
+    ImportResult:
+      type: object
+      additionalProperties: false
+      required: [objectKey, rowErrors, proposals]
+      properties:
+        objectKey:
+          type: string
+        version:
+          $ref: "#/components/schemas/FrameworkVersion"
+        rowErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+        proposals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Proposal"
+    ImportError:
+      type: object
+      additionalProperties: false
+      required: [objectKey, missingColumns, rowErrors]
+      properties:
+        objectKey:
+          type: string
+        missingColumns:
+          type: array
+          items:
+            type: string
+        rowErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+    UpdateIndicator:
+      type: object
+      additionalProperties: false
+      required: [statement]
+      properties:
+        statement:
+          type: string
+    DecideProposal:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted, edited, rejected]
+        message:
+          type: string
+    Role:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    Capability:
+      type: object
+      additionalProperties: false
+      required: [id, name, levels]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        levels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProficiencyLevel"
+    ProficiencyLevel:
+      type: object
+      additionalProperties: false
+      required: [id, level, indicators]
+      properties:
+        id:
+          type: string
+        level:
+          type: integer
+        indicators:
+          type: array
+          items:
+            $ref: "#/components/schemas/Indicator"
+    Indicator:
+      type: object
+      additionalProperties: false
+      required: [id, statement]
+      properties:
+        id:
+          type: string
+        statement:
+          type: string
+    Requirement:
+      type: object
+      additionalProperties: false
+      required: [id, roleId, capabilityId, requiredLevel]
+      properties:
+        id:
+          type: string
+        roleId:
+          type: string
+        capabilityId:
+          type: string
+        requiredLevel:
+          type: integer
+    CreateFramework:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+    CreateRole:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+    CreateCapability:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+    CreateRequirement:
+      type: object
+      additionalProperties: false
+      required: [roleId, capabilityId, requiredLevel]
+      properties:
+        roleId:
+          type: string
+        capabilityId:
+          type: string
+        requiredLevel:
+          type: integer
+    CreateIndicator:
+      type: object
+      additionalProperties: false
+      required: [capabilityId, level, statement]
+      properties:
+        capabilityId:
+          type: string
+        level:
+          type: integer
+        statement:
+          type: string
+    PatchRole:
+      type: object
+      additionalProperties: false
+      required: [roleId, roleName]
+      properties:
+        roleId:
+          type: string
+        roleName:
+          type: string

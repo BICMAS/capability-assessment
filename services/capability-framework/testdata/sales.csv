@@ -1,0 +1,7 @@
+framework version,department,role code,role name,capability code,capability name,capability type,definition,required level,proficiency levels,behavioural indicators,assessment methods,learning asset ids,practice scenario ids,workplace mission,weight,governance status
+1,Sales,ASM,Area Sales Manager,NEG,Negotiation,skill,Agrees commercial outcomes,4,0|1|2|3|4,"Describes a commercial negotiation.|Prepares a position before the negotiation.|Explores the buyer interests before proposing terms.|Trades concessions for commercial value.|Reaches a commercial agreement with the buyer.",manager assessment,asset-1,scenario-1,Close a live deal,1,draft
+1,Sales,ASM,Area Sales Manager,NEG,Negotiation,skill,Agrees commercial outcomes,4,0|1|2|3|4,"Describes a commercial negotiation.|Prepares a position before the negotiation.|Explores the buyer interests before proposing terms.|Trades concessions for commercial value.|Reaches a commercial agreement with the buyer.",manager assessment,asset-1,scenario-1,Close a live deal,1,draft
+1,Sales,ASM,Area Sales Manager,SL,Sales Leadership,skill,Leads the sales team,3,,,,,,,1,draft
+1,Sales,ASM,Area Sales Manager,CM,Customer Management,skill,Manages customer relationships,3,,,,,,,1,draft
+1,Sales,ASM,Area Sales Manager,CA,Commercial Acumen,skill,Reads the commercial position,3,,,,,,,1,draft
+1,Sales,ASM,Area Sales Manager,EE,Execution Excellence,skill,Delivers the sales plan,3,,,,,,,1,draft
