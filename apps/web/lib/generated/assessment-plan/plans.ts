@@ -84,6 +84,8 @@ export type Plan = {
   changeReason?: string;
   approvedByPersonId?: string;
   approvedAt?: string;
+  promptVersion?: string;
+  modelName?: string;
   skills: PlanSkill[];
 };
 
@@ -114,6 +116,31 @@ export class PlanImmutable extends Error {
     this.name = "PlanImmutable";
   }
 }
+
+export type SessionStatus = "assigned" | "started" | "submitted";
+
+export type SessionProposal = {
+  capabilityId: string;
+  source: "knowledge" | "situational_judgement" | "ai_interview";
+  requiredLevel: number;
+  percentage: number;
+  bandLevels: number[];
+};
+
+export type AssessmentSession = {
+  id: string;
+  planId: string;
+  personId: string;
+  status: SessionStatus;
+  confirmed?: boolean;
+  proposals?: SessionProposal[];
+  skills: { instructions: string; items: { id: string; prompt: string; answer: string }[] }[];
+};
+
+export type SessionConfirmation = {
+  session: AssessmentSession;
+  explanations: { capabilityCode: string; currentLevel: string; gap: string }[];
+};
 
 export function assessmentPlanUrl(): string {
   const configured = process.env.ASSESSMENT_PLAN_URL;
@@ -270,6 +297,80 @@ export async function copyApprovedPlan(token: string, planId: string): Promise<P
   return planRequest(token, "POST", `/plans/${encodeURIComponent(planId)}/versions`);
 }
 
+export async function listAssessmentSessions(token: string, personId?: string): Promise<AssessmentSession[]> {
+  const query = personId ? `?personId=${encodeURIComponent(personId)}` : "";
+  const response = await fetch(`${assessmentPlanUrl()}/assessment-sessions${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`listAssessmentSessions failed with status ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  if (!Array.isArray(payload) || !payload.every(isAssessmentSession)) {
+    throw new Error("listAssessmentSessions returned an unexpected payload");
+  }
+  return payload;
+}
+
+export async function confirmAssessmentSession(token: string, sessionId: string): Promise<SessionConfirmation> {
+  const response = await fetch(`${assessmentPlanUrl()}/assessment-sessions/${encodeURIComponent(sessionId)}/confirmation`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (response.status === 403) {
+    throw new PlanForbidden();
+  }
+  if (!response.ok) {
+    throw new Error(`confirmAssessmentSession failed with status ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  if (!isSessionConfirmation(payload)) {
+    throw new Error("confirmAssessmentSession returned an unexpected payload");
+  }
+  return payload;
+}
+
+export async function startAssessmentSession(token: string, sessionId: string): Promise<AssessmentSession> {
+  return sessionRequest(token, "POST", `/assessment-sessions/${encodeURIComponent(sessionId)}/start`);
+}
+
+export async function saveAssessmentAnswers(
+  token: string,
+  sessionId: string,
+  answers: { itemId: string; answer: string }[],
+): Promise<AssessmentSession> {
+  return sessionRequest(token, "PUT", `/assessment-sessions/${encodeURIComponent(sessionId)}/answers`, { answers });
+}
+
+export async function submitAssessmentSession(token: string, sessionId: string): Promise<AssessmentSession> {
+  return sessionRequest(token, "POST", `/assessment-sessions/${encodeURIComponent(sessionId)}/submission`);
+}
+
+async function sessionRequest(token: string, method: string, path: string, body?: unknown): Promise<AssessmentSession> {
+  const response = await fetch(`${assessmentPlanUrl()}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (response.status === 403) {
+    throw new PlanForbidden();
+  }
+  if (!response.ok) {
+    throw new Error(`${method} ${path} failed with status ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  if (!isAssessmentSession(payload)) {
+    throw new Error(`${method} ${path} returned an unexpected payload`);
+  }
+  return payload;
+}
+
 async function planRequest(token: string, method: string, path: string, body?: unknown): Promise<Plan> {
   const response = await fetch(`${assessmentPlanUrl()}${path}`, {
     method,
@@ -376,6 +477,8 @@ function isPlan(value: unknown): value is Plan {
     typeof row.assignmentId === "string" &&
     typeof row.versionNumber === "number" &&
     isPlanStatus(row.status) &&
+    (row.promptVersion === undefined || typeof row.promptVersion === "string") &&
+    (row.modelName === undefined || typeof row.modelName === "string") &&
     Array.isArray(row.skills) &&
     row.skills.every(isPlanSkill)
   );
@@ -411,6 +514,75 @@ function isPlanSkill(value: unknown): value is PlanSkill {
     skill.assessmentItems.every(isAssessmentItem) &&
     Array.isArray(skill.rubric) &&
     skill.rubric.every(isRubricBand)
+  );
+}
+
+function isAssessmentSession(value: unknown): value is AssessmentSession {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "string" &&
+    typeof row.planId === "string" &&
+    typeof row.personId === "string" &&
+    (row.status === "assigned" || row.status === "started" || row.status === "submitted") &&
+    !("percentage" in row) &&
+    (row.confirmed === undefined || typeof row.confirmed === "boolean") &&
+    (row.proposals === undefined || (Array.isArray(row.proposals) && row.proposals.every(isSessionProposal))) &&
+    Array.isArray(row.skills) &&
+    row.skills.every((skill) => {
+      if (typeof skill !== "object" || skill === null) {
+        return false;
+      }
+      const card = skill as Record<string, unknown>;
+      return (
+        typeof card.instructions === "string" &&
+        Array.isArray(card.items) &&
+        card.items.every((item) => {
+          if (typeof item !== "object" || item === null) {
+            return false;
+          }
+          const answer = item as Record<string, unknown>;
+          return typeof answer.id === "string" && typeof answer.prompt === "string" && typeof answer.answer === "string";
+        })
+      );
+    }) &&
+    !("rubric" in row)
+  );
+}
+
+function isSessionProposal(value: unknown): value is SessionProposal {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const proposal = value as Record<string, unknown>;
+  return (
+    typeof proposal.capabilityId === "string" &&
+    (proposal.source === "knowledge" || proposal.source === "situational_judgement" || proposal.source === "ai_interview") &&
+    typeof proposal.requiredLevel === "number" &&
+    typeof proposal.percentage === "number" &&
+    Number.isInteger(proposal.percentage) &&
+    Array.isArray(proposal.bandLevels) &&
+    proposal.bandLevels.every((level) => typeof level === "number")
+  );
+}
+
+function isSessionConfirmation(value: unknown): value is SessionConfirmation {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return (
+    isAssessmentSession(row.session) &&
+    Array.isArray(row.explanations) &&
+    row.explanations.every((item) => {
+      if (typeof item !== "object" || item === null) {
+        return false;
+      }
+      const explanation = item as Record<string, unknown>;
+      return typeof explanation.capabilityCode === "string" && typeof explanation.currentLevel === "string" && typeof explanation.gap === "string";
+    })
   );
 }
 

@@ -6,18 +6,83 @@ import { PathwayView } from "@/components/pathway";
 import { listPublishedFrameworks, type FrameworkVersion } from "@/lib/capability-framework";
 import { readLevel } from "@/lib/generated/assessment-gap/levels";
 import { readPathway } from "@/lib/generated/development/pathways";
+import { listAssessmentSessions, type AssessmentSession } from "@/lib/generated/assessment-plan/plans";
 import { readProfile } from "@/lib/org-directory";
 import { SESSION_COOKIE } from "@/lib/session";
 
-export default async function EmployeePage() {
+import { submitSessionAnswers } from "./session-actions";
+
+export default async function EmployeePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sessionError?: string }>;
+}) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) {
     redirect("/");
   }
-  const [profile, frameworks] = await Promise.all([readProfile(token), listPublishedFrameworks(token)]);
+  const [profile, frameworks, sessions, params] = await Promise.all([
+    readProfile(token),
+    listPublishedFrameworks(token),
+    loadSessions(token),
+    searchParams,
+  ]);
   const titles = new Set(profile.roles.map((role) => role.title));
+  const ownSessions = sessions.filter((session) => session.personId === profile.id);
 
   return (
+    <>
+      {ownSessions.length > 0 ? (
+        <section className="capability-board">
+          <h2>Assessment</h2>
+          {params.sessionError ? <p className="login-error">{params.sessionError}</p> : null}
+          {ownSessions.map((session) => (
+            <article key={session.id} className="primary-capability">
+              <p className="studio-status">
+                <span className="studio-lock">{session.status}</span>
+              </p>
+              {session.status === "submitted" && session.confirmed
+                ? (session.proposals ?? []).map((proposal) => (
+                    <p key={proposal.capabilityId} className="provisional">
+                      {proposalLabel(proposal.source)} {proposal.percentage} · Provisional
+                    </p>
+                  ))
+                : null}
+              {session.status === "submitted" ? (
+                session.skills.map((skill, index) => (
+                  <div key={`${session.id}-${index}`} className="plan-skill">
+                    <p>{skill.instructions}</p>
+                    <ul>
+                      {skill.items.map((item) => (
+                        <li key={item.id}>
+                          <p>{item.prompt}</p>
+                          <p>{item.answer}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <form action={submitSessionAnswers} className="framework-form">
+                  <input type="hidden" name="sessionId" value={session.id} />
+                  {session.skills.map((skill, index) => (
+                    <div key={`${session.id}-${index}`} className="plan-skill">
+                      <p>{skill.instructions}</p>
+                      {skill.items.map((item) => (
+                        <label key={item.id}>
+                          {item.prompt}
+                          <textarea name={`answer.${item.id}`} required maxLength={8000} defaultValue={item.answer} />
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                  <button type="submit">Submit answers</button>
+                </form>
+              )}
+            </article>
+          ))}
+        </section>
+      ) : null}
     <section className="capability-board">
       <h2>Role</h2>
       <ul>
@@ -35,7 +100,29 @@ export default async function EmployeePage() {
         </article>
       ))}
     </section>
+    </>
   );
+}
+
+function proposalLabel(source: string): string {
+  switch (source) {
+    case "knowledge":
+      return "Knowledge";
+    case "situational_judgement":
+      return "Situational judgement";
+    case "ai_interview":
+      return "AI interview";
+    default:
+      return source;
+  }
+}
+
+async function loadSessions(token: string): Promise<AssessmentSession[]> {
+  try {
+    return await listAssessmentSessions(token);
+  } catch {
+    return [];
+  }
 }
 
 async function FrameworkLevels({

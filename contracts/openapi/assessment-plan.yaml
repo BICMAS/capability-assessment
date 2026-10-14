@@ -79,6 +79,10 @@ paths:
           description: No assignment
         "409":
           description: A generated plan already exists, or the framework version is not published
+        "502":
+          description: The model provider did not return a draft
+        "503":
+          description: The model provider is not configured
   /plans:
     post:
       operationId: createPlan
@@ -286,6 +290,163 @@ paths:
           description: Admin role required
         "404":
           description: No plan
+  /plans/{planId}/session:
+    post:
+      operationId: createAssessmentSession
+      summary: Create a session from an approved plan for the person on the assignment
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Session assigned to the person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentSession"
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan
+        "409":
+          description: Plan is not approved
+  /assessment-sessions:
+    get:
+      operationId: listAssessmentSessions
+      summary: Sessions assigned to the signed-in person, or to a person the caller manages
+      parameters:
+        - name: personId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessions for that person. A manager or admin listing someone else also receives proposals.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssessmentSession"
+        "403":
+          description: The caller does not manage that person
+  /assessment-sessions/{sessionId}:
+    get:
+      operationId: readAssessmentSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Instructions and items for the signed-in person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentSession"
+        "403":
+          description: Session belongs to someone else
+        "404":
+          description: No session
+  /assessment-sessions/{sessionId}/start:
+    post:
+      operationId: startAssessmentSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentSession"
+        "403":
+          description: Session belongs to someone else
+        "409":
+          description: Session is not assigned
+  /assessment-sessions/{sessionId}/answers:
+    put:
+      operationId: saveAssessmentAnswers
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveSessionAnswers"
+      responses:
+        "200":
+          description: Written answers stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentSession"
+        "400":
+          description: Invalid answer
+        "403":
+          description: Session belongs to someone else
+        "409":
+          description: Session has not started
+  /assessment-sessions/{sessionId}/submission:
+    post:
+      operationId: submitAssessmentSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentSession"
+        "400":
+          description: An item has no written answer
+        "403":
+          description: Session belongs to someone else
+        "409":
+          description: Session has not started
+        "503":
+          description: The model provider is not configured or returned invalid JSON
+  /assessment-sessions/{sessionId}/confirmation:
+    post:
+      operationId: confirmAssessmentSession
+      summary: An admin, or the person's manager, records the proposed percentages in assessment-gap
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The levels assessment-gap calculated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionConfirmation"
+        "403":
+          description: The caller cannot confirm this person
+        "409":
+          description: The session is not submitted, or it is already confirmed
 components:
   schemas:
     AssignPerson:
@@ -595,7 +756,116 @@ components:
         approvedAt:
           type: string
           format: date-time
+        promptVersion:
+          type: string
+        modelName:
+          type: string
         skills:
           type: array
           items:
             $ref: "#/components/schemas/PlanSkill"
+    AssessmentSession:
+      type: object
+      additionalProperties: false
+      required: [id, planId, personId, status, skills]
+      properties:
+        id:
+          type: string
+        planId:
+          type: string
+        personId:
+          type: string
+        status:
+          type: string
+          enum: [assigned, started, submitted]
+        confirmed:
+          type: boolean
+        proposals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionProposal"
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionSkill"
+    SessionProposal:
+      type: object
+      additionalProperties: false
+      required: [capabilityId, source, requiredLevel, percentage, bandLevels]
+      properties:
+        capabilityId:
+          type: string
+        source:
+          type: string
+          enum: [knowledge, situational_judgement, ai_interview]
+        requiredLevel:
+          type: integer
+          minimum: 0
+          maximum: 4
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        bandLevels:
+          type: array
+          items:
+            type: integer
+    SessionConfirmation:
+      type: object
+      additionalProperties: false
+      required: [session, explanations]
+      properties:
+        session:
+          $ref: "#/components/schemas/AssessmentSession"
+        explanations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [capabilityCode, currentLevel, gap]
+            properties:
+              capabilityCode:
+                type: string
+              currentLevel:
+                type: string
+              gap:
+                type: string
+    SessionSkill:
+      type: object
+      additionalProperties: false
+      required: [instructions, items]
+      properties:
+        instructions:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionItem"
+    SessionItem:
+      type: object
+      additionalProperties: false
+      required: [id, prompt, answer]
+      properties:
+        id:
+          type: string
+        prompt:
+          type: string
+        answer:
+          type: string
+    SaveSessionAnswers:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [itemId, answer]
+            properties:
+              itemId:
+                type: string
+              answer:
+                type: string

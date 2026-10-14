@@ -24,7 +24,7 @@ export type RecordAttempt = {
   personId: string;
   frameworkVersionId: string;
   capabilityCode: string;
-  source: "knowledge" | "situational_judgement" | "self_assessment" | "manager_assessment";
+  source: "knowledge" | "situational_judgement" | "self_assessment" | "manager_assessment" | "ai_interview";
   percentage: number;
   evidenceIds: string[];
   requiredLevel: number;

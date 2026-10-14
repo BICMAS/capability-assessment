@@ -70,7 +70,7 @@ func ReadAssignment(store Store) http.HandlerFunc {
 	}
 }
 
-func GeneratePlan(store Store, frameworks FrameworkReader) http.HandlerFunc {
+func GeneratePlan(store Store, frameworks FrameworkReader, drafter Drafter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := claimsFrom(w, r)
 		if !ok {
@@ -89,7 +89,7 @@ func GeneratePlan(store Store, frameworks FrameworkReader) http.HandlerFunc {
 			writeStoreError(w, err)
 			return
 		}
-		created, err := Generate(r.Context(), store, frameworks, PlanInput{
+		created, err := Generate(r.Context(), store, frameworks, drafter, PlanInput{
 			OrganisationID: claims.OrganisationID,
 			AssignmentID:   assignment.ID,
 		}, r.Header.Get("Authorization"), assignment.FrameworkVersionID, assignment.RoleID)
@@ -314,6 +314,233 @@ func ReplacePlan(store Store) http.HandlerFunc {
 	}
 }
 
+func CreateSession(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := adminClaims(w, r)
+		if !ok {
+			return
+		}
+		created, err := store.CreateSession(r.Context(), claims.OrganisationID, chi.URLParam(r, "planId"))
+		writeResult(w, http.StatusCreated, sessionJSON(created, false), err)
+	}
+}
+
+func ListSessions(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		personID := r.URL.Query().Get("personId")
+		includeProposals := false
+		if personID == "" || personID == claims.PersonID {
+			personID = claims.PersonID
+		} else if canAssign(claims, personID) {
+			includeProposals = true
+		} else {
+			writeError(w, http.StatusForbidden)
+			return
+		}
+		sessions, err := store.ListSessions(r.Context(), claims.OrganisationID, personID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		encoded := make([]openapi.Session, 0, len(sessions))
+		for _, session := range sessions {
+			encoded = append(encoded, sessionJSON(session, includeProposals))
+		}
+		writeJSON(w, http.StatusOK, encoded)
+	}
+}
+
+func ReadSession(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		session, err := store.GetSession(r.Context(), claims.OrganisationID, chi.URLParam(r, "sessionId"))
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if session.PersonID == claims.PersonID {
+			writeJSON(w, http.StatusOK, sessionJSON(session, false))
+			return
+		}
+		if !canAssign(claims, session.PersonID) {
+			writeError(w, http.StatusForbidden)
+			return
+		}
+		writeJSON(w, http.StatusOK, sessionJSON(session, true))
+	}
+}
+
+func StartSession(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		started, err := store.StartSession(r.Context(), claims.OrganisationID, chi.URLParam(r, "sessionId"), claims.PersonID, time.Now().UTC())
+		writeResult(w, http.StatusOK, sessionJSON(started, false), err)
+	}
+}
+
+func SaveSessionAnswers(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		var body openapi.SaveSessionAnswers
+		if !decode(w, r, &body) {
+			return
+		}
+		answers := make([]AnswerInput, 0, len(body.Answers))
+		for _, answer := range body.Answers {
+			answers = append(answers, AnswerInput{ItemID: answer.ItemID, Answer: answer.Answer})
+		}
+		saved, err := store.SaveAnswers(r.Context(), claims.OrganisationID, chi.URLParam(r, "sessionId"), claims.PersonID, answers)
+		writeResult(w, http.StatusOK, sessionJSON(saved, false), err)
+	}
+}
+
+func SubmitSession(store Store, matcher BandMatcher) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		sessionID := chi.URLParam(r, "sessionId")
+		current, err := store.GetSession(r.Context(), claims.OrganisationID, sessionID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if current.PersonID != claims.PersonID {
+			writeError(w, http.StatusForbidden)
+			return
+		}
+		if current.Status != SessionStarted || !answersComplete(current) {
+			proposals := []Proposal(nil)
+			submitted, err := store.SubmitSession(r.Context(), claims.OrganisationID, sessionID, claims.PersonID, time.Now().UTC(), proposals)
+			writeResult(w, http.StatusOK, sessionJSON(submitted, false), err)
+			return
+		}
+		proposals, err := propose(r.Context(), store, matcher, claims.OrganisationID, current)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		submitted, err := store.SubmitSession(r.Context(), claims.OrganisationID, sessionID, claims.PersonID, time.Now().UTC(), proposals)
+		writeResult(w, http.StatusOK, sessionJSON(submitted, false), err)
+	}
+}
+
+func ConfirmSession(store Store, gaps GapRecorder) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFrom(w, r)
+		if !ok {
+			return
+		}
+		session, err := store.GetSession(r.Context(), claims.OrganisationID, chi.URLParam(r, "sessionId"))
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if !canAssign(claims, session.PersonID) {
+			writeError(w, http.StatusForbidden)
+			return
+		}
+		if session.Status != SessionSubmitted || len(session.Proposals) == 0 {
+			writeError(w, http.StatusConflict)
+			return
+		}
+		if !session.ConfirmedAt.IsZero() {
+			writeError(w, http.StatusConflict)
+			return
+		}
+		if gaps == nil {
+			writeStoreError(w, ErrProvider)
+			return
+		}
+		row, err := store.GetPlan(r.Context(), claims.OrganisationID, session.PlanID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		assignment, err := store.GetAssignment(r.Context(), claims.OrganisationID, row.AssignmentID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		explanations := make([]openapi.ConfirmedExplanation, 0, len(session.Proposals))
+		for _, proposal := range session.Proposals {
+			recorded, err := gaps.Record(r.Context(), r.Header.Get("Authorization"), GapAttempt{
+				PersonID:           session.PersonID,
+				FrameworkVersionID: assignment.FrameworkVersionID,
+				CapabilityCode:     proposal.CapabilityID,
+				Source:             proposal.EvidenceSource,
+				Percentage:         proposal.Percentage,
+				EvidenceIDs:        []string{session.ID},
+				RequiredLevel:      float64(proposal.RequiredLevel),
+			})
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+			explanations = append(explanations, openapi.ConfirmedExplanation{
+				CapabilityCode: recorded.CapabilityCode,
+				CurrentLevel:   recorded.CurrentLevel,
+				Gap:            recorded.Gap,
+			})
+		}
+		confirmed, err := store.MarkSessionConfirmed(r.Context(), claims.OrganisationID, session.ID, time.Now().UTC())
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, openapi.SessionConfirmation{
+			Session:      sessionJSON(confirmed, true),
+			Explanations: explanations,
+		})
+	}
+}
+
+func sessionJSON(row Session, includeProposals bool) openapi.Session {
+	skills := make([]openapi.SessionSkill, 0, len(row.Skills))
+	for _, skill := range row.Skills {
+		items := make([]openapi.SessionItem, 0, len(skill.Items))
+		for _, item := range skill.Items {
+			items = append(items, openapi.SessionItem{ID: item.ID, Prompt: item.Prompt, Answer: item.Answer})
+		}
+		skills = append(skills, openapi.SessionSkill{Instructions: skill.Instructions, Items: items})
+	}
+	encoded := openapi.Session{
+		ID:        row.ID,
+		PlanID:    row.PlanID,
+		PersonID:  row.PersonID,
+		Status:    row.Status,
+		Confirmed: !row.ConfirmedAt.IsZero(),
+		Skills:    skills,
+	}
+	if includeProposals || !row.ConfirmedAt.IsZero() {
+		encoded.Proposals = make([]openapi.SessionProposal, 0, len(row.Proposals))
+		for _, proposal := range row.Proposals {
+			encoded.Proposals = append(encoded.Proposals, openapi.SessionProposal{
+				CapabilityID:  proposal.CapabilityID,
+				Source:        proposal.EvidenceSource,
+				RequiredLevel: proposal.RequiredLevel,
+				Percentage:    proposal.Percentage,
+				BandLevels:    append([]int(nil), proposal.BandLevels...),
+			})
+		}
+	}
+	return encoded
+}
+
 func canAssign(claims token.Claims, personID string) bool {
 	if claims.HasRole("admin") {
 		return true
@@ -411,6 +638,8 @@ func planJSON(row Plan) openapi.Plan {
 		ChangeReason:       optionalText(row.ChangeReason),
 		ApprovedByPersonID: optionalText(row.ApprovedByPersonID),
 		ApprovedAt:         optionalTime(row.ApprovedAt),
+		PromptVersion:      optionalText(row.PromptVersion),
+		ModelName:          optionalText(row.ModelName),
 		Skills:             skills,
 	}
 }
@@ -480,8 +709,10 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRoleNotOnVersion):
 		writeError(w, http.StatusBadRequest)
-	case errors.Is(err, ErrImmutable), errors.Is(err, ErrNotPublished), errors.Is(err, ErrAlreadyGenerated), errors.Is(err, ErrNotEditable):
+	case errors.Is(err, ErrImmutable), errors.Is(err, ErrNotPublished), errors.Is(err, ErrAlreadyGenerated), errors.Is(err, ErrNotEditable), errors.Is(err, ErrNotApproved):
 		writeError(w, http.StatusConflict)
+	case errors.Is(err, ErrProvider):
+		writeError(w, http.StatusServiceUnavailable)
 	case errors.Is(err, ErrUpstream):
 		writeError(w, http.StatusBadGateway)
 	default:

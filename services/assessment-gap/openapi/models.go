@@ -1,7 +1,7 @@
 package openapi
 
-// RecordAttempt is a stored attempt for knowledge, situational judgement,
-// self-assessment, or manager assessment.
+// RecordAttempt is a stored attempt. Simulation has no writer.
+// Self-assessment is stored and is not part of the level.
 type RecordAttempt struct {
 	PersonID           string   `json:"personId"`
 	FrameworkVersionID string   `json:"frameworkVersionId"`

@@ -141,6 +141,8 @@ func (s *SQLStore) CreateGeneratedPlan(ctx context.Context, input PlanInput) (Pl
 			AssignmentID:   input.AssignmentID,
 			VersionNumber:  1,
 			Status:         StatusGenerated,
+			PromptVersion:  nullString(input.PromptVersion),
+			ModelName:      nullString(input.ModelName),
 		}); err != nil {
 			return err
 		}
@@ -456,6 +458,11 @@ func (s *SQLStore) review(ctx context.Context, input ReviewInput, next func(stri
 		}); err != nil {
 			return err
 		}
+		if status == StatusApproved {
+			if _, err := ensureSession(ctx, q, input.OrganisationID, input.PlanID); err != nil {
+				return err
+			}
+		}
 		loaded, err := loadPlan(ctx, q, input.OrganisationID, input.PlanID)
 		if err != nil {
 			return err
@@ -504,6 +511,8 @@ func (s *SQLStore) CopyApprovedPlan(ctx context.Context, organisationID, planID 
 			AssignmentID:   current.AssignmentID,
 			VersionNumber:  version,
 			Status:         StatusDraft,
+			PromptVersion:  nullString(current.PromptVersion),
+			ModelName:      nullString(current.ModelName),
 		}); err != nil {
 			return err
 		}
@@ -653,6 +662,8 @@ func loadPlan(ctx context.Context, q *db.Queries, organisationID, planID string)
 		ChangeReason:       row.ChangeReason.String,
 		ApprovedByPersonID: row.ApprovedByPersonID.String,
 		ApprovedAt:         approvedAt,
+		PromptVersion:      row.PromptVersion.String,
+		ModelName:          row.ModelName.String,
 		Skills:             skills,
 	}, nil
 }

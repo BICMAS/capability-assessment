@@ -17,6 +17,17 @@ type AssessmentItem struct {
 	Prompt         string
 }
 
+type AssessmentSession struct {
+	ID             string
+	OrganisationID string
+	PlanID         string
+	PersonID       string
+	Status         string
+	StartedAt      sql.NullTime
+	SubmittedAt    sql.NullTime
+	ConfirmedAt    sql.NullTime
+}
+
 type Assignment struct {
 	ID                 string
 	OrganisationID     string
@@ -38,6 +49,8 @@ type Plan struct {
 	ChangeReason       sql.NullString
 	ApprovedByPersonID sql.NullString
 	ApprovedAt         sql.NullTime
+	PromptVersion      sql.NullString
+	ModelName          sql.NullString
 }
 
 type PlanSkill struct {
@@ -62,4 +75,26 @@ type RubricBand struct {
 	PlanSkillID    string
 	Level          int32
 	Descriptor     string
+}
+
+type SessionAnswer struct {
+	ID               string
+	OrganisationID   string
+	SessionID        string
+	AssessmentItemID string
+	Answer           string
+}
+
+type SessionProposal struct {
+	ID                string
+	OrganisationID    string
+	SessionID         string
+	PlanSkillID       string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int32
+	RecommendedMethod string
+	EvidenceSource    string
+	BandLevels        string
+	Percentage        int32
 }

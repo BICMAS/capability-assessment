@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+const confirmSession = `-- name: ConfirmSession :exec
+UPDATE assessment_sessions
+SET confirmed_at = $3
+WHERE organisation_id = $1 AND id = $2 AND status = 'submitted' AND confirmed_at IS NULL
+`
+
+type ConfirmSessionParams struct {
+	OrganisationID string
+	ID             string
+	ConfirmedAt    sql.NullTime
+}
+
+func (q *Queries) ConfirmSession(ctx context.Context, arg ConfirmSessionParams) error {
+	_, err := q.db.ExecContext(ctx, confirmSession, arg.OrganisationID, arg.ID, arg.ConfirmedAt)
+	return err
+}
+
 const deleteAssessmentItemsByPlan = `-- name: DeleteAssessmentItemsByPlan :exec
 DELETE FROM assessment_items
 WHERE assessment_items.organisation_id = $1
@@ -213,7 +230,7 @@ func (q *Queries) GetGeneratedPlan(ctx context.Context, arg GetGeneratedPlanPara
 }
 
 const getPlan = `-- name: GetPlan :one
-SELECT id, organisation_id, assignment_id, version_number, status, change_reason, approved_by_person_id, approved_at
+SELECT id, organisation_id, assignment_id, version_number, status, change_reason, approved_by_person_id, approved_at, prompt_version, model_name
 FROM plans
 WHERE organisation_id = $1 AND id = $2
 `
@@ -235,12 +252,14 @@ func (q *Queries) GetPlan(ctx context.Context, arg GetPlanParams) (Plan, error) 
 		&i.ChangeReason,
 		&i.ApprovedByPersonID,
 		&i.ApprovedAt,
+		&i.PromptVersion,
+		&i.ModelName,
 	)
 	return i, err
 }
 
 const getPlanForUpdate = `-- name: GetPlanForUpdate :one
-SELECT id, organisation_id, assignment_id, version_number, status, change_reason, approved_by_person_id, approved_at
+SELECT id, organisation_id, assignment_id, version_number, status, change_reason, approved_by_person_id, approved_at, prompt_version, model_name
 FROM plans
 WHERE organisation_id = $1 AND id = $2
 FOR UPDATE
@@ -263,6 +282,62 @@ func (q *Queries) GetPlanForUpdate(ctx context.Context, arg GetPlanForUpdatePara
 		&i.ChangeReason,
 		&i.ApprovedByPersonID,
 		&i.ApprovedAt,
+		&i.PromptVersion,
+		&i.ModelName,
+	)
+	return i, err
+}
+
+const getSession = `-- name: GetSession :one
+SELECT id, organisation_id, plan_id, person_id, status, started_at, submitted_at, confirmed_at
+FROM assessment_sessions
+WHERE organisation_id = $1 AND id = $2
+`
+
+type GetSessionParams struct {
+	OrganisationID string
+	ID             string
+}
+
+func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (AssessmentSession, error) {
+	row := q.db.QueryRowContext(ctx, getSession, arg.OrganisationID, arg.ID)
+	var i AssessmentSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.PlanID,
+		&i.PersonID,
+		&i.Status,
+		&i.StartedAt,
+		&i.SubmittedAt,
+		&i.ConfirmedAt,
+	)
+	return i, err
+}
+
+const getSessionByPlan = `-- name: GetSessionByPlan :one
+SELECT id, organisation_id, plan_id, person_id, status, started_at, submitted_at, confirmed_at
+FROM assessment_sessions
+WHERE organisation_id = $1 AND plan_id = $2
+`
+
+type GetSessionByPlanParams struct {
+	OrganisationID string
+	PlanID         string
+}
+
+func (q *Queries) GetSessionByPlan(ctx context.Context, arg GetSessionByPlanParams) (AssessmentSession, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByPlan, arg.OrganisationID, arg.PlanID)
+	var i AssessmentSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.PlanID,
+		&i.PersonID,
+		&i.Status,
+		&i.StartedAt,
+		&i.SubmittedAt,
+		&i.ConfirmedAt,
 	)
 	return i, err
 }
@@ -347,9 +422,11 @@ INSERT INTO plans (
     organisation_id,
     assignment_id,
     version_number,
-    status
+    status,
+    prompt_version,
+    model_name
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6, $7
 )
 `
 
@@ -359,6 +436,8 @@ type InsertPlanParams struct {
 	AssignmentID   string
 	VersionNumber  int32
 	Status         string
+	PromptVersion  sql.NullString
+	ModelName      sql.NullString
 }
 
 func (q *Queries) InsertPlan(ctx context.Context, arg InsertPlanParams) error {
@@ -368,6 +447,8 @@ func (q *Queries) InsertPlan(ctx context.Context, arg InsertPlanParams) error {
 		arg.AssignmentID,
 		arg.VersionNumber,
 		arg.Status,
+		arg.PromptVersion,
+		arg.ModelName,
 	)
 	return err
 }
@@ -458,6 +539,115 @@ func (q *Queries) InsertRubricBand(ctx context.Context, arg InsertRubricBandPara
 	return err
 }
 
+const insertSession = `-- name: InsertSession :exec
+INSERT INTO assessment_sessions (
+    id,
+    organisation_id,
+    plan_id,
+    person_id,
+    status
+) VALUES (
+    $1, $2, $3, $4, 'assigned'
+)
+`
+
+type InsertSessionParams struct {
+	ID             string
+	OrganisationID string
+	PlanID         string
+	PersonID       string
+}
+
+func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
+	_, err := q.db.ExecContext(ctx, insertSession,
+		arg.ID,
+		arg.OrganisationID,
+		arg.PlanID,
+		arg.PersonID,
+	)
+	return err
+}
+
+const insertSessionAnswer = `-- name: InsertSessionAnswer :exec
+INSERT INTO session_answers (
+    id,
+    organisation_id,
+    session_id,
+    assessment_item_id,
+    answer
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+`
+
+type InsertSessionAnswerParams struct {
+	ID               string
+	OrganisationID   string
+	SessionID        string
+	AssessmentItemID string
+	Answer           string
+}
+
+func (q *Queries) InsertSessionAnswer(ctx context.Context, arg InsertSessionAnswerParams) error {
+	_, err := q.db.ExecContext(ctx, insertSessionAnswer,
+		arg.ID,
+		arg.OrganisationID,
+		arg.SessionID,
+		arg.AssessmentItemID,
+		arg.Answer,
+	)
+	return err
+}
+
+const insertSessionProposal = `-- name: InsertSessionProposal :exec
+INSERT INTO session_proposals (
+    id,
+    organisation_id,
+    session_id,
+    plan_skill_id,
+    requirement_id,
+    capability_id,
+    required_level,
+    recommended_method,
+    evidence_source,
+    band_levels,
+    percentage
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+`
+
+type InsertSessionProposalParams struct {
+	ID                string
+	OrganisationID    string
+	SessionID         string
+	PlanSkillID       string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int32
+	RecommendedMethod string
+	EvidenceSource    string
+	BandLevels        string
+	Percentage        int32
+}
+
+func (q *Queries) InsertSessionProposal(ctx context.Context, arg InsertSessionProposalParams) error {
+	_, err := q.db.ExecContext(ctx, insertSessionProposal,
+		arg.ID,
+		arg.OrganisationID,
+		arg.SessionID,
+		arg.PlanSkillID,
+		arg.RequirementID,
+		arg.CapabilityID,
+		arg.RequiredLevel,
+		arg.RecommendedMethod,
+		arg.EvidenceSource,
+		arg.BandLevels,
+		arg.Percentage,
+	)
+	return err
+}
+
 const listAssessmentItems = `-- name: ListAssessmentItems :many
 SELECT id, prompt
 FROM assessment_items
@@ -485,6 +675,72 @@ func (q *Queries) ListAssessmentItems(ctx context.Context, arg ListAssessmentIte
 	for rows.Next() {
 		var i ListAssessmentItemsRow
 		if err := rows.Scan(&i.ID, &i.Prompt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlanItems = `-- name: ListPlanItems :many
+SELECT
+    plan_skills.id AS skill_id,
+    plan_skills.requirement_id,
+    plan_skills.capability_id,
+    plan_skills.required_level,
+    plan_skills.recommended_method,
+    plan_skills.instructions,
+    assessment_items.id AS item_id,
+    assessment_items.prompt
+FROM assessment_items
+JOIN plan_skills ON plan_skills.id = assessment_items.plan_skill_id
+    AND plan_skills.organisation_id = assessment_items.organisation_id
+WHERE assessment_items.organisation_id = $1
+  AND plan_skills.plan_id = $2
+ORDER BY plan_skills.position ASC, assessment_items.position ASC
+`
+
+type ListPlanItemsParams struct {
+	OrganisationID string
+	PlanID         string
+}
+
+type ListPlanItemsRow struct {
+	SkillID           string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int32
+	RecommendedMethod string
+	Instructions      string
+	ItemID            string
+	Prompt            string
+}
+
+func (q *Queries) ListPlanItems(ctx context.Context, arg ListPlanItemsParams) ([]ListPlanItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPlanItems, arg.OrganisationID, arg.PlanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlanItemsRow
+	for rows.Next() {
+		var i ListPlanItemsRow
+		if err := rows.Scan(
+			&i.SkillID,
+			&i.RequirementID,
+			&i.CapabilityID,
+			&i.RequiredLevel,
+			&i.RecommendedMethod,
+			&i.Instructions,
+			&i.ItemID,
+			&i.Prompt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -600,6 +856,144 @@ func (q *Queries) ListRubricBands(ctx context.Context, arg ListRubricBandsParams
 	return items, nil
 }
 
+const listSessionAnswers = `-- name: ListSessionAnswers :many
+SELECT assessment_item_id, answer
+FROM session_answers
+WHERE organisation_id = $1 AND session_id = $2
+`
+
+type ListSessionAnswersParams struct {
+	OrganisationID string
+	SessionID      string
+}
+
+type ListSessionAnswersRow struct {
+	AssessmentItemID string
+	Answer           string
+}
+
+func (q *Queries) ListSessionAnswers(ctx context.Context, arg ListSessionAnswersParams) ([]ListSessionAnswersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionAnswers, arg.OrganisationID, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionAnswersRow
+	for rows.Next() {
+		var i ListSessionAnswersRow
+		if err := rows.Scan(&i.AssessmentItemID, &i.Answer); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionProposals = `-- name: ListSessionProposals :many
+SELECT plan_skill_id, requirement_id, capability_id, required_level, recommended_method, evidence_source, band_levels, percentage
+FROM session_proposals
+WHERE organisation_id = $1 AND session_id = $2
+ORDER BY id ASC
+`
+
+type ListSessionProposalsParams struct {
+	OrganisationID string
+	SessionID      string
+}
+
+type ListSessionProposalsRow struct {
+	PlanSkillID       string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int32
+	RecommendedMethod string
+	EvidenceSource    string
+	BandLevels        string
+	Percentage        int32
+}
+
+func (q *Queries) ListSessionProposals(ctx context.Context, arg ListSessionProposalsParams) ([]ListSessionProposalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionProposals, arg.OrganisationID, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionProposalsRow
+	for rows.Next() {
+		var i ListSessionProposalsRow
+		if err := rows.Scan(
+			&i.PlanSkillID,
+			&i.RequirementID,
+			&i.CapabilityID,
+			&i.RequiredLevel,
+			&i.RecommendedMethod,
+			&i.EvidenceSource,
+			&i.BandLevels,
+			&i.Percentage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsByPerson = `-- name: ListSessionsByPerson :many
+SELECT id, organisation_id, plan_id, person_id, status, started_at, submitted_at, confirmed_at
+FROM assessment_sessions
+WHERE organisation_id = $1 AND person_id = $2
+ORDER BY id ASC
+`
+
+type ListSessionsByPersonParams struct {
+	OrganisationID string
+	PersonID       string
+}
+
+func (q *Queries) ListSessionsByPerson(ctx context.Context, arg ListSessionsByPersonParams) ([]AssessmentSession, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionsByPerson, arg.OrganisationID, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AssessmentSession
+	for rows.Next() {
+		var i AssessmentSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.PlanID,
+			&i.PersonID,
+			&i.Status,
+			&i.StartedAt,
+			&i.SubmittedAt,
+			&i.ConfirmedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextPlanVersion = `-- name: NextPlanVersion :one
 SELECT (COALESCE(MAX(version_number), 0) + 1)::integer AS next_version
 FROM plans
@@ -691,5 +1085,55 @@ type UpdatePlanStatusParams struct {
 
 func (q *Queries) UpdatePlanStatus(ctx context.Context, arg UpdatePlanStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updatePlanStatus, arg.OrganisationID, arg.ID, arg.Status)
+	return err
+}
+
+const updateSessionAnswer = `-- name: UpdateSessionAnswer :exec
+UPDATE session_answers
+SET answer = $4
+WHERE organisation_id = $1 AND session_id = $2 AND assessment_item_id = $3
+`
+
+type UpdateSessionAnswerParams struct {
+	OrganisationID   string
+	SessionID        string
+	AssessmentItemID string
+	Answer           string
+}
+
+func (q *Queries) UpdateSessionAnswer(ctx context.Context, arg UpdateSessionAnswerParams) error {
+	_, err := q.db.ExecContext(ctx, updateSessionAnswer,
+		arg.OrganisationID,
+		arg.SessionID,
+		arg.AssessmentItemID,
+		arg.Answer,
+	)
+	return err
+}
+
+const updateSessionProgress = `-- name: UpdateSessionProgress :exec
+UPDATE assessment_sessions
+SET status = $3,
+    started_at = $4,
+    submitted_at = $5
+WHERE organisation_id = $1 AND id = $2
+`
+
+type UpdateSessionProgressParams struct {
+	OrganisationID string
+	ID             string
+	Status         string
+	StartedAt      sql.NullTime
+	SubmittedAt    sql.NullTime
+}
+
+func (q *Queries) UpdateSessionProgress(ctx context.Context, arg UpdateSessionProgressParams) error {
+	_, err := q.db.ExecContext(ctx, updateSessionProgress,
+		arg.OrganisationID,
+		arg.ID,
+		arg.Status,
+		arg.StartedAt,
+		arg.SubmittedAt,
+	)
 	return err
 }

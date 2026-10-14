@@ -54,6 +54,55 @@ type SkillInput struct {
 	Rubric            []RubricBandInput     `json:"rubric"`
 }
 
+type SessionItem struct {
+	ID     string `json:"id"`
+	Prompt string `json:"prompt"`
+	Answer string `json:"answer"`
+}
+
+type SessionSkill struct {
+	Instructions string        `json:"instructions"`
+	Items        []SessionItem `json:"items"`
+}
+
+type Session struct {
+	ID         string            `json:"id"`
+	PlanID     string            `json:"planId"`
+	PersonID   string            `json:"personId"`
+	Status     string            `json:"status"`
+	Confirmed  bool              `json:"confirmed,omitempty"`
+	Proposals  []SessionProposal `json:"proposals,omitempty"`
+	Skills     []SessionSkill    `json:"skills"`
+}
+
+type SessionProposal struct {
+	CapabilityID  string `json:"capabilityId"`
+	Source        string `json:"source"`
+	RequiredLevel int    `json:"requiredLevel"`
+	Percentage    int    `json:"percentage"`
+	BandLevels    []int  `json:"bandLevels"`
+}
+
+type SessionConfirmation struct {
+	Session      Session                  `json:"session"`
+	Explanations []ConfirmedExplanation   `json:"explanations"`
+}
+
+type ConfirmedExplanation struct {
+	CapabilityCode string `json:"capabilityCode"`
+	CurrentLevel   string `json:"currentLevel"`
+	Gap            string `json:"gap"`
+}
+
+type SessionAnswer struct {
+	ItemID string `json:"itemId"`
+	Answer string `json:"answer"`
+}
+
+type SaveSessionAnswers struct {
+	Answers []SessionAnswer `json:"answers"`
+}
+
 type GeneratePlan struct {
 	AssignmentID string `json:"assignmentId"`
 }
@@ -113,5 +162,7 @@ type Plan struct {
 	ChangeReason       *string     `json:"changeReason,omitempty"`
 	ApprovedByPersonID *string     `json:"approvedByPersonId,omitempty"`
 	ApprovedAt         *string     `json:"approvedAt,omitempty"`
+	PromptVersion      *string     `json:"promptVersion,omitempty"`
+	ModelName          *string     `json:"modelName,omitempty"`
 	Skills             []PlanSkill `json:"skills"`
 }

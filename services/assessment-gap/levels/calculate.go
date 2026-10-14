@@ -88,7 +88,7 @@ func copyInt(value *int) *int {
 
 func writable(source string) bool {
 	switch source {
-	case SourceKnowledge, SourceSituationalJudgement, SourceSelfAssessment, SourceManagerAssessment:
+	case SourceKnowledge, SourceSituationalJudgement, SourceSelfAssessment, SourceManagerAssessment, SourceAIInterview:
 		return true
 	default:
 		return false
@@ -96,5 +96,5 @@ func writable(source string) bool {
 }
 
 func columnOnly(source string) bool {
-	return source == SourceAIInterview || source == SourceSimulation
+	return source == SourceSimulation
 }

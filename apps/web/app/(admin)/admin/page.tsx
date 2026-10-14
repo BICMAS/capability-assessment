@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { listAuditRecords, type AuditRecord } from "@/lib/audit";
 import { listFrameworkVersions } from "@/lib/capability-framework";
-import { readAssignment, readPlan, type AssignmentResult } from "@/lib/generated/assessment-plan/plans";
+import { listAssessmentSessions, readAssignment, readPlan, type AssessmentSession, type AssignmentResult } from "@/lib/generated/assessment-plan/plans";
 import { listDepartments, listPeople, listRoleAssignments } from "@/lib/org-directory";
 import { SESSION_COOKIE } from "@/lib/session";
 
@@ -101,6 +101,7 @@ export default async function AdminPage({
           <PlanStep
             assignment={assessment.assignment}
             plan={assessment.plan}
+            session={sessionForPlan(await personSessions(token, assessment.assignment.personId), assessment.plan?.id ?? "")}
             version={selectedVersion}
             personName={personName}
             roleName={selectedRole?.name ?? "Role"}
@@ -149,6 +150,18 @@ export default async function AdminPage({
       </section>
     </div>
   );
+}
+
+async function personSessions(token: string, personId: string): Promise<AssessmentSession[]> {
+  try {
+    return await listAssessmentSessions(token, personId);
+  } catch {
+    return [];
+  }
+}
+
+function sessionForPlan(sessions: AssessmentSession[], planId: string): AssessmentSession | null {
+  return sessions.find((session) => session.planId === planId) ?? null;
 }
 
 async function loadAssessment(token: string, assignmentId: string, planId: string) {

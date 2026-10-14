@@ -16,6 +16,8 @@ var (
 	ErrPersonOutsideOrg = errors.New("person is outside the organisation")
 	ErrAlreadyGenerated = errors.New("generated plan already exists")
 	ErrNotEditable      = errors.New("plan cannot be edited in this status")
+	ErrProvider         = errors.New("model provider is not configured")
+	ErrNotApproved      = errors.New("plan is not approved")
 )
 
 const (
@@ -26,6 +28,10 @@ const (
 	StatusUnderReview      = "under_review"
 	StatusChangesRequested = "changes_requested"
 	StatusApproved         = "approved"
+
+	SessionAssigned  = "assigned"
+	SessionStarted   = "started"
+	SessionSubmitted = "submitted"
 
 	OutcomeAssigned = "assigned"
 	OutcomeSkipped  = "skipped"
@@ -117,6 +123,8 @@ type Plan struct {
 	ChangeReason       string
 	ApprovedByPersonID string
 	ApprovedAt         time.Time
+	PromptVersion      string
+	ModelName          string
 	Skills             []PlanSkill
 }
 
@@ -142,6 +150,8 @@ type ReviewInput struct {
 type PlanInput struct {
 	OrganisationID string
 	AssignmentID   string
+	PromptVersion  string
+	ModelName      string
 	Skills         []SkillInput
 }
 
@@ -245,6 +255,51 @@ type PersonResult struct {
 	AssignmentID string
 }
 
+type SessionItem struct {
+	ID     string
+	Prompt string
+	Answer string
+}
+
+type SessionSkill struct {
+	ID                string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int
+	RecommendedMethod string
+	Instructions      string
+	Items             []SessionItem
+}
+
+type Proposal struct {
+	PlanSkillID       string
+	RequirementID     string
+	CapabilityID      string
+	RequiredLevel     int
+	RecommendedMethod string
+	EvidenceSource    string
+	BandLevels        []int
+	Percentage        int
+}
+
+type Session struct {
+	ID             string
+	OrganisationID string
+	PlanID         string
+	PersonID       string
+	Status         string
+	StartedAt      time.Time
+	SubmittedAt    time.Time
+	ConfirmedAt    time.Time
+	Proposals      []Proposal
+	Skills         []SessionSkill
+}
+
+type AnswerInput struct {
+	ItemID string
+	Answer string
+}
+
 type Store interface {
 	CreateAssignment(ctx context.Context, input AssignmentInput) (Assignment, error)
 	FindAssignment(ctx context.Context, organisationID, personID, frameworkVersionID, roleID string) (Assignment, error)
@@ -258,4 +313,11 @@ type Store interface {
 	RequestChanges(ctx context.Context, input ReviewInput) (Plan, error)
 	ApprovePlan(ctx context.Context, input ReviewInput) (Plan, error)
 	CopyApprovedPlan(ctx context.Context, organisationID, planID string) (Plan, error)
+	CreateSession(ctx context.Context, organisationID, planID string) (Session, error)
+	ListSessions(ctx context.Context, organisationID, personID string) ([]Session, error)
+	GetSession(ctx context.Context, organisationID, sessionID string) (Session, error)
+	StartSession(ctx context.Context, organisationID, sessionID, personID string, at time.Time) (Session, error)
+	SaveAnswers(ctx context.Context, organisationID, sessionID, personID string, answers []AnswerInput) (Session, error)
+	SubmitSession(ctx context.Context, organisationID, sessionID, personID string, at time.Time, proposals []Proposal) (Session, error)
+	MarkSessionConfirmed(ctx context.Context, organisationID, sessionID string, at time.Time) (Session, error)
 }

@@ -3,6 +3,7 @@ module github.com/bicmas-academy/learn/services/assessment-plan
 go 1.27
 
 require (
+	github.com/bicmas-academy/learn/services/assessment-gap v0.0.0
 	github.com/bicmas-academy/learn/services/token v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -26,5 +27,7 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
+
+replace github.com/bicmas-academy/learn/services/assessment-gap => ../assessment-gap
 
 replace github.com/bicmas-academy/learn/services/token => ../token

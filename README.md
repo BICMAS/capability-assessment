@@ -16,6 +16,6 @@ The operating loop is Define → Assess → Diagnose → Develop → Practise �
 - `services/capability-framework` — frameworks, published versions, roles, capabilities, and requirements.
 - `services/assessment-gap` — assessment attempts, evidence citations, and calculated levels and gaps.
 - `services/development` — capability-to-course mappings, pathways, and learning completions.
-- `services/assessment-plan` — role assignments and assessment plans.
+- `services/assessment-plan` — role assignments, assessment plans, and submitted-session proposals.
 - `contracts/openapi` — OpenAPI specifications for the Go services.
 - `contracts/events` — cross-service event definitions.

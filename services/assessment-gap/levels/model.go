@@ -36,7 +36,7 @@ type Explanation struct {
 }
 
 // Calculation records writable attempts and persists the explanation.
-// AI interview and simulation are explanation columns only.
+// Simulation has no writer. AI interview is recorded by an admin or the person's manager.
 type Calculation struct {
 	OrganisationID     string
 	PersonID           string

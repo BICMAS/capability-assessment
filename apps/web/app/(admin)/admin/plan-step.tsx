@@ -1,11 +1,13 @@
+import { ProposalConfirm } from "@/components/proposal-confirm";
 import type { FrameworkVersion } from "@/lib/capability-framework";
-import type { Assignment, Plan, PlanSkill } from "@/lib/generated/assessment-plan/plans";
+import type { AssessmentSession, Assignment, Plan, PlanSkill } from "@/lib/generated/assessment-plan/plans";
 
-import { approveAssessmentPlan, generatePlan, requestPlanChange, savePlanSkill, submitPlanForReview } from "./assessment-actions";
+import { approveAssessmentPlan, confirmProposal, generatePlan, requestPlanChange, savePlanSkill, submitPlanForReview } from "./assessment-actions";
 
 export function PlanStep({
   assignment,
   plan,
+  session,
   version,
   personName,
   roleName,
@@ -14,6 +16,7 @@ export function PlanStep({
 }: {
   assignment: Assignment;
   plan: Plan | null;
+  session: AssessmentSession | null;
   version: FrameworkVersion | null;
   personName: string;
   roleName: string;
@@ -66,6 +69,17 @@ export function PlanStep({
               </label>
               <button type="submit">Request changes</button>
             </form>
+          ) : null}
+          {session ? (
+            <ProposalConfirm
+              personId={assignment.personId}
+              sessions={[session]}
+              action={confirmProposal}
+              hidden={[
+                { name: "assignmentId", value: assignment.id },
+                { name: "planId", value: plan.id },
+              ]}
+            />
           ) : null}
           {plan.status === "generated" || plan.status === "under_review" || plan.status === "changes_requested" ? (
             <form action={approveAssessmentPlan}>

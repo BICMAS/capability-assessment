@@ -108,6 +108,7 @@ components:
             - situational_judgement
             - self_assessment
             - manager_assessment
+            - ai_interview
         percentage:
           type: integer
           minimum: 0

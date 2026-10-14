@@ -49,22 +49,65 @@ func TestHTTPSelfAssessmentKeepsTheCalculatedLevel(t *testing.T) {
 	}
 }
 
-func TestHTTPHasNoWriterForAIInterviewOrSimulation(t *testing.T) {
+func TestHTTPSimulationHasNoWriter(t *testing.T) {
 	store := NewMemory()
 	handler := NewRouter(func(context.Context) error { return nil }, []byte(httpSecret), store, &recordingPublisher{})
-	for _, source := range []string{SourceAIInterview, SourceSimulation} {
-		response := postJSON(t, handler, "/attempts", eliClaims(), map[string]any{
-			"personId":           regressionPersonID,
-			"frameworkVersionId": regressionFrameworkID,
-			"capabilityCode":     regressionCapability,
-			"source":             source,
-			"percentage":         68,
-			"evidenceIds":        []string{"evidence-1"},
-			"requiredLevel":      4.0,
-		})
-		if response.Code != http.StatusBadRequest {
-			t.Fatalf("%s status = %d", source, response.Code)
-		}
+	response := postJSON(t, handler, "/attempts", adaGapClaims(), map[string]any{
+		"personId":           regressionPersonID,
+		"frameworkVersionId": regressionFrameworkID,
+		"capabilityCode":     regressionCapability,
+		"source":             SourceSimulation,
+		"percentage":         68,
+		"evidenceIds":        []string{"evidence-1"},
+		"requiredLevel":      4.0,
+	})
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+func TestHTTPAIInterviewIsRecordedByTheManagerOrAdmin(t *testing.T) {
+	store := NewMemory()
+	handler := NewRouter(func(context.Context) error { return nil }, []byte(httpSecret), store, &recordingPublisher{})
+	body := map[string]any{
+		"personId":           regressionPersonID,
+		"frameworkVersionId": regressionFrameworkID,
+		"capabilityCode":     regressionCapability,
+		"source":             SourceAIInterview,
+		"percentage":         75,
+		"evidenceIds":        []string{"session-1"},
+		"requiredLevel":      4.0,
+	}
+	if response := postJSON(t, handler, "/attempts", eliClaims(), body); response.Code != http.StatusForbidden {
+		t.Fatalf("employee status = %d", response.Code)
+	}
+	other := mayaClaims()
+	other.ManagerOf = []string{}
+	if response := postJSON(t, handler, "/attempts", other, body); response.Code != http.StatusForbidden {
+		t.Fatalf("unrelated manager status = %d", response.Code)
+	}
+	response := postJSON(t, handler, "/attempts", mayaClaims(), body)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("manager status = %d body = %s", response.Code, response.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["aiInterviewPercentage"] != float64(75) || payload["currentLevel"] != "3.0" || payload["gap"] != "1.0" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	admin := postJSON(t, handler, "/attempts", adaGapClaims(), body)
+	if admin.Code != http.StatusCreated {
+		t.Fatalf("admin status = %d", admin.Code)
+	}
+}
+
+func adaGapClaims() token.Claims {
+	return token.Claims{
+		PersonID:       "3c1e9a70-5b24-4d8f-a6e1-2f0b8c4d6e11",
+		OrganisationID: regressionOrganisationID,
+		Roles:          []string{"admin"},
 	}
 }
 

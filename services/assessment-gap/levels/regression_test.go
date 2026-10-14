@@ -57,22 +57,36 @@ func TestSelfAssessmentDoesNotChangeCurrentLevel(t *testing.T) {
 	assertAttempts(t, store, true)
 }
 
-func TestRecordRejectsAIInterviewAndSimulation(t *testing.T) {
+func TestRecordRejectsSimulationAndStoresAIInterview(t *testing.T) {
 	store := NewMemory()
-	for _, source := range []string{SourceAIInterview, SourceSimulation} {
-		_, err := store.Record(context.Background(), AttemptInput{
-			OrganisationID:     regressionOrganisationID,
-			PersonID:           regressionPersonID,
-			FrameworkVersionID: regressionFrameworkID,
-			CapabilityCode:     regressionCapability,
-			Source:             source,
-			Percentage:         68,
-			EvidenceIDs:        []string{"evidence-1"},
-			RequiredLevel:      40,
-		})
-		if err != ErrNoWriter {
-			t.Fatalf("%s error = %v", source, err)
-		}
+	_, err := store.Record(context.Background(), AttemptInput{
+		OrganisationID:     regressionOrganisationID,
+		PersonID:           regressionPersonID,
+		FrameworkVersionID: regressionFrameworkID,
+		CapabilityCode:     regressionCapability,
+		Source:             SourceSimulation,
+		Percentage:         68,
+		EvidenceIDs:        []string{"evidence-1"},
+		RequiredLevel:      40,
+	})
+	if err != ErrNoWriter {
+		t.Fatalf("simulation error = %v", err)
+	}
+	got, err := store.Record(context.Background(), AttemptInput{
+		OrganisationID:     regressionOrganisationID,
+		PersonID:           regressionPersonID,
+		FrameworkVersionID: regressionFrameworkID,
+		CapabilityCode:     regressionCapability,
+		Source:             SourceAIInterview,
+		Percentage:         75,
+		EvidenceIDs:        []string{"session-1"},
+		RequiredLevel:      40,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AIInterview == nil || *got.AIInterview != 75 || got.CurrentLevel.String() != "3.0" || got.Gap.String() != "1.0" {
+		t.Fatalf("explanation = %+v", got)
 	}
 }
 

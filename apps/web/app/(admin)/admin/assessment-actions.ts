@@ -10,6 +10,7 @@ import {
   VersionNotPublished,
   approvePlan,
   assignPeople,
+  confirmAssessmentSession,
   editPlanSkill,
   generateAssessmentPlan,
   requestPlanChanges,
@@ -167,6 +168,23 @@ async function movePlan(
   }
   revalidatePath("/admin");
   redirect(planLocation(assignmentId, savedId));
+}
+
+export async function confirmProposal(formData: FormData) {
+  const assignmentId = text(formData, "assignmentId");
+  const planId = text(formData, "planId");
+  const sessionId = text(formData, "sessionId");
+  if (!sessionId) {
+    redirect(planLocation(assignmentId, planId, "That session was not found."));
+  }
+  try {
+    await confirmAssessmentSession(await sessionToken(), sessionId);
+  } catch {
+    redirect(planLocation(assignmentId, planId, "The proposal could not be confirmed."));
+  }
+  revalidatePath("/admin");
+  revalidatePath("/employee");
+  redirect(planLocation(assignmentId, planId));
 }
 
 function planLocation(assignmentId: string, planId: string, error?: string): string {

@@ -1,10 +1,13 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ProposalConfirm } from "@/components/proposal-confirm";
 import { listPublishedFrameworks } from "@/lib/capability-framework";
+import { listAssessmentSessions } from "@/lib/generated/assessment-plan/plans";
 import { listPeople, readPerson } from "@/lib/org-directory";
 import { SESSION_COOKIE } from "@/lib/session";
 
+import { confirmProposal } from "../../actions";
 import { PersonRecord, loadCapabilities } from "../../team";
 
 export default async function ManagerPersonPage({ params }: { params: Promise<{ personId: string }> }) {
@@ -22,7 +25,11 @@ export default async function ManagerPersonPage({ params }: { params: Promise<{ 
       </section>
     );
   }
-  const [profile, frameworks] = await Promise.all([readPerson(token, person.id), listPublishedFrameworks(token)]);
+  const [profile, frameworks, sessions] = await Promise.all([
+    readPerson(token, person.id),
+    listPublishedFrameworks(token),
+    listAssessmentSessions(token, person.id).catch(() => []),
+  ]);
   const capabilities = await loadCapabilities(
     token,
     person.id,
@@ -32,6 +39,7 @@ export default async function ManagerPersonPage({ params }: { params: Promise<{ 
 
   return (
     <section className="team-person">
+      <ProposalConfirm personId={person.id} sessions={sessions} action={confirmProposal} />
       <PersonRecord
         personId={person.id}
         personName={person.name}

@@ -14,19 +14,23 @@ type assignmentKey struct {
 }
 
 type Memory struct {
-	mu          sync.Mutex
-	assignments map[string]Assignment
-	byKey       map[assignmentKey]string
-	plans       map[string]Plan
-	versions    map[string]int
+	mu            sync.Mutex
+	assignments   map[string]Assignment
+	byKey         map[assignmentKey]string
+	plans         map[string]Plan
+	versions      map[string]int
+	sessions      map[string]Session
+	sessionByPlan map[string]string
 }
 
 func NewMemory() *Memory {
 	return &Memory{
-		assignments: map[string]Assignment{},
-		byKey:       map[assignmentKey]string{},
-		plans:       map[string]Plan{},
-		versions:    map[string]int{},
+		assignments:   map[string]Assignment{},
+		byKey:         map[assignmentKey]string{},
+		plans:         map[string]Plan{},
+		versions:      map[string]int{},
+		sessions:      map[string]Session{},
+		sessionByPlan: map[string]string{},
 	}
 }
 
@@ -124,6 +128,8 @@ func (m *Memory) CreateGeneratedPlan(_ context.Context, input PlanInput) (Plan, 
 		AssignmentID:   input.AssignmentID,
 		VersionNumber:  1,
 		Status:         StatusGenerated,
+		PromptVersion:  input.PromptVersion,
+		ModelName:      input.ModelName,
 		Skills:         skills,
 	}
 	m.plans[id] = row
@@ -338,10 +344,15 @@ func (m *Memory) ApprovePlan(_ context.Context, input ReviewInput) (Plan, error)
 	if err := ensureApprovable(row.Status); err != nil {
 		return Plan{}, err
 	}
+	previous := row
 	row.Status = StatusApproved
 	row.ApprovedByPersonID = input.ActorPersonID
 	row.ApprovedAt = input.At.UTC()
 	m.plans[input.PlanID] = row
+	if _, err := m.insertSession(row); err != nil {
+		m.plans[input.PlanID] = previous
+		return Plan{}, err
+	}
 	return copyPlan(row), nil
 }
 
@@ -373,6 +384,8 @@ func (m *Memory) CopyApprovedPlan(_ context.Context, organisationID, planID stri
 		AssignmentID:   row.AssignmentID,
 		VersionNumber:  version,
 		Status:         StatusDraft,
+		PromptVersion:  row.PromptVersion,
+		ModelName:      row.ModelName,
 		Skills:         skills,
 	}
 	m.plans[id] = copy

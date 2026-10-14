@@ -42,7 +42,7 @@ func TestEditApproveAndCopyNegotiationPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	publisher := &reviewPublisher{}
-	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, publisher)
+	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, publisher, nil, nil, nil)
 	token := sign(t, adaClaims())
 	skillID := created.Skills[0].ID
 
@@ -116,7 +116,7 @@ func TestRequestChangesRequiresAReason(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, &reviewPublisher{})
+	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, &reviewPublisher{}, nil, nil, nil)
 	token := sign(t, adaClaims())
 	jsonCall(t, handler, http.MethodPost, "/plans/"+created.ID+"/submission", token, "", http.StatusOK)
 	jsonCall(t, handler, http.MethodPost, "/plans/"+created.ID+"/change-requests", token, `{}`, http.StatusBadRequest)

@@ -72,6 +72,9 @@ func TestAdaAssignsEliToThePublishedNegotiationRole(t *testing.T) {
 		HTTPFramework{BaseURL: framework.URL},
 		HTTPDirectory{BaseURL: directory.URL},
 		publisher,
+		nil,
+		nil,
+		nil,
 	)
 	token := sign(t, adaClaims())
 

@@ -128,7 +128,7 @@ func allowRecord(claims token.Claims, personID, source string) bool {
 	switch source {
 	case SourceKnowledge, SourceSituationalJudgement, SourceSelfAssessment:
 		return claims.PersonID == personID || claims.HasRole("admin")
-	case SourceManagerAssessment:
+	case SourceManagerAssessment, SourceAIInterview:
 		return claims.HasRole("admin") || (claims.HasRole("manager") && manages(claims, personID))
 	default:
 		return false

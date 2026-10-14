@@ -81,12 +81,18 @@ func run(logger *slog.Logger) error {
 	defer publisher.Close()
 	store := plan.NewSQLStore(db)
 	client := &http.Client{Timeout: 5 * time.Second}
+	drafter := plan.HTTPDrafter{
+		APIKey:   os.Getenv("ASSESSMENT_MODEL_API_KEY"),
+		Model:    os.Getenv("ASSESSMENT_MODEL_NAME"),
+		Endpoint: os.Getenv("ASSESSMENT_MODEL_URL"),
+		Client:   &http.Client{Timeout: 60 * time.Second},
+	}
 
 	server := &http.Server{
 		Addr: listenAddr(),
 		Handler: plan.NewRouter(func(ctx context.Context) error {
 			return checkDatabase(ctx, db, databaseName)
-		}, []byte(secret), store, plan.HTTPFramework{BaseURL: frameworkURL, Client: client}, plan.HTTPDirectory{BaseURL: directoryURL, Client: client}, publisher),
+		}, []byte(secret), store, plan.HTTPFramework{BaseURL: frameworkURL, Client: client}, plan.HTTPDirectory{BaseURL: directoryURL, Client: client}, publisher, drafter, drafter, plan.HTTPGap{BaseURL: os.Getenv("ASSESSMENT_GAP_URL"), Client: client}),
 	}
 	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
