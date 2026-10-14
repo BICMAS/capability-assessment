@@ -8,6 +8,7 @@ import (
 	nats "github.com/nats-io/nats.go"
 	js "github.com/nats-io/nats.go/jetstream"
 
+	"github.com/bicmas-academy/learn/services/audit/assessment"
 	"github.com/bicmas-academy/learn/services/audit/assignment"
 	"github.com/bicmas-academy/learn/services/audit/learning"
 	"github.com/bicmas-academy/learn/services/audit/overridden"
@@ -17,12 +18,14 @@ import (
 )
 
 const (
-	StreamName        = "LEARN_EVENTS"
-	Subject           = "person.signed_in"
-	AssignmentSubject = "assignment.changed"
-	FrameworkSubject  = "framework.published"
-	LevelSubject      = "level.overridden"
-	LearningSubject   = "learning.completed"
+	StreamName          = "LEARN_EVENTS"
+	Subject             = "person.signed_in"
+	AssignmentSubject   = "assignment.changed"
+	FrameworkSubject    = "framework.published"
+	LevelSubject        = "level.overridden"
+	LearningSubject     = "learning.completed"
+	AssessmentSubject   = "assessment.assigned"
+	PlanApprovedSubject = "assessment.plan_approved"
 )
 
 type Subscription struct {
@@ -42,7 +45,7 @@ func Subscribe(ctx context.Context, natsURL string, store records.Store, logger 
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
 		Name:     StreamName,
-		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject},
+		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
 	}); err != nil {
 		conn.Close()
 		return nil, err
@@ -92,7 +95,32 @@ func Subscribe(ctx context.Context, natsURL string, store records.Store, logger 
 		conn.Close()
 		return nil, err
 	}
-	return &Subscription{consumes: []js.ConsumeContext{signedIn, changed, frameworkPublished, levelOverridden, learningCompleted}, conn: conn}, nil
+	assessmentAssigned, err := consume(stream, ctx, "audit-assessment-assigned", AssessmentSubject, func(applyCtx context.Context, payload []byte) error {
+		return assessment.Apply(applyCtx, store, payload)
+	}, logger)
+	if err != nil {
+		signedIn.Stop()
+		changed.Stop()
+		frameworkPublished.Stop()
+		levelOverridden.Stop()
+		learningCompleted.Stop()
+		conn.Close()
+		return nil, err
+	}
+	planApproved, err := consume(stream, ctx, "audit-assessment-plan-approved", PlanApprovedSubject, func(applyCtx context.Context, payload []byte) error {
+		return assessment.ApplyApproved(applyCtx, store, payload)
+	}, logger)
+	if err != nil {
+		signedIn.Stop()
+		changed.Stop()
+		frameworkPublished.Stop()
+		levelOverridden.Stop()
+		learningCompleted.Stop()
+		assessmentAssigned.Stop()
+		conn.Close()
+		return nil, err
+	}
+	return &Subscription{consumes: []js.ConsumeContext{signedIn, changed, frameworkPublished, levelOverridden, learningCompleted, assessmentAssigned, planApproved}, conn: conn}, nil
 }
 
 func consume(stream js.JetStream, ctx context.Context, durable, subject string, apply func(context.Context, []byte) error, logger *slog.Logger) (js.ConsumeContext, error) {

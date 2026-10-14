@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	assessment_gap "github.com/bicmas-academy/learn/services/assessment-gap/health"
+	assessment_plan "github.com/bicmas-academy/learn/services/assessment-plan/health"
 	audit "github.com/bicmas-academy/learn/services/audit/health"
 	capability_framework "github.com/bicmas-academy/learn/services/capability-framework/health"
 	development "github.com/bicmas-academy/learn/services/development/health"
@@ -30,6 +31,7 @@ func TestServiceHealth(t *testing.T) {
 		{"org-directory", org_directory.NewRouter(ready), org_directory.ServiceName},
 		{"capability-framework", capability_framework.NewRouter(ready), capability_framework.ServiceName},
 		{"assessment-gap", assessment_gap.NewRouter(ready), assessment_gap.ServiceName},
+		{"assessment-plan", assessment_plan.NewRouter(ready), assessment_plan.ServiceName},
 		{"development", development.NewRouter(ready), development.ServiceName},
 	}
 

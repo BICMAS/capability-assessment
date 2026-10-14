@@ -39,7 +39,8 @@ h3,
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   color: inherit;
 }
@@ -590,7 +591,8 @@ a {
 }
 
 .framework-form input,
-.framework-form textarea {
+.framework-form textarea,
+.framework-form select {
   text-transform: none;
   letter-spacing: normal;
   color: var(--ink);
@@ -747,6 +749,72 @@ a {
 .studio-region .login-error {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.person-choices,
+.assignment-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.person-choices {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.person-choices label {
+  display: flex;
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.person-choices input {
+  width: auto;
+}
+
+.person-title {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.assignment-results {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.assignment-results li,
+.plan-skill .studio-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  align-items: baseline;
+}
+
+.plan-skills {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.plan-skill {
+  background: var(--field);
+  border: 1px solid var(--hairline);
+  padding: 1.05rem 1.1rem 1.15rem;
+}
+
+.plan-skill h3 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  line-height: 1.05;
+}
+
+.rubric-edit {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.65rem;
 }
 
 .org-grid {
@@ -1015,9 +1083,14 @@ a {
   }
 
   .framework-form input,
+  .framework-form select,
   .framework-form button {
     min-height: 2.75rem;
     font-size: 1rem;
+  }
+
+  .rubric-edit {
+    grid-template-columns: 1fr;
   }
 
   .studio-version,

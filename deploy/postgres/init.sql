@@ -4,3 +4,4 @@ CREATE DATABASE org_directory;
 CREATE DATABASE capability_framework;
 CREATE DATABASE assessment_gap;
 CREATE DATABASE development;
+CREATE DATABASE assessment_plan;

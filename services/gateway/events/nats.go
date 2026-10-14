@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	StreamName        = "LEARN_EVENTS"
-	Subject           = "person.signed_in"
-	AssignmentSubject = "assignment.changed"
-	FrameworkSubject  = "framework.published"
-	LevelSubject      = "level.overridden"
-	LearningSubject   = "learning.completed"
+	StreamName          = "LEARN_EVENTS"
+	Subject             = "person.signed_in"
+	AssignmentSubject   = "assignment.changed"
+	FrameworkSubject    = "framework.published"
+	LevelSubject        = "level.overridden"
+	LearningSubject     = "learning.completed"
+	AssessmentSubject   = "assessment.assigned"
+	PlanApprovedSubject = "assessment.plan_approved"
 )
 
 type Publisher struct {
@@ -36,7 +38,7 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
 		Name:     StreamName,
-		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject},
+		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
 	}); err != nil {
 		conn.Close()
 		return nil, err

@@ -17,6 +17,8 @@ const (
 	FrameworkSubject      = "framework.published"
 	LevelSubject          = "level.overridden"
 	LearningSubject       = "learning.completed"
+	AssessmentSubject     = "assessment.assigned"
+	PlanApprovedSubject   = "assessment.plan_approved"
 )
 
 type Publisher struct {
@@ -42,6 +44,8 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 			FrameworkSubject,
 			LevelSubject,
 			LearningSubject,
+			AssessmentSubject,
+			PlanApprovedSubject,
 		},
 	}); err != nil {
 		conn.Close()

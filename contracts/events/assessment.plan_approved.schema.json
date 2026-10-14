@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:assessment.plan_approved",
+  "title": "assessment.plan_approved",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "personId", "assignmentId", "planId", "actorPersonId", "versionNumber", "occurredAt"],
+  "properties": {
+    "type": { "const": "assessment.plan_approved" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "personId": { "type": "string", "minLength": 1 },
+    "assignmentId": { "type": "string", "minLength": 1 },
+    "planId": { "type": "string", "minLength": 1 },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "versionNumber": { "type": "integer", "minimum": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

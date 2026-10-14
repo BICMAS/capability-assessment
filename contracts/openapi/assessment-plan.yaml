@@ -1,0 +1,601 @@
+openapi: 3.0.3
+info:
+  title: assessment-plan
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: Service is ready
+  /assignments:
+    post:
+      operationId: assignPeople
+      description: Admin assigns people to one role on one published framework version. Each person is assigned, skipped, or failed on their own.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRequest"
+      responses:
+        "200":
+          description: One result for each person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentBatch"
+        "400":
+          description: Invalid request, or the role is not on the framework version
+        "403":
+          description: Admin role required
+        "404":
+          description: Framework version was not found
+        "409":
+          description: Framework version is not published
+  /assignments/{assignmentId}:
+    get:
+      operationId: readAssignment
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "403":
+          description: Admin role required
+        "404":
+          description: No assignment
+  /assessment-plans:
+    post:
+      operationId: generateAssessmentPlan
+      summary: Generate version 1 of an assessment plan for an admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePlan"
+      responses:
+        "201":
+          description: Generated plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Invalid assignment or draft
+        "403":
+          description: Caller is not an admin
+        "404":
+          description: No assignment
+        "409":
+          description: A generated plan already exists, or the framework version is not published
+  /plans:
+    post:
+      operationId: createPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlan"
+      responses:
+        "201":
+          description: Next plan version stored as a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Invalid plan
+        "403":
+          description: Caller cannot plan this assignment
+        "404":
+          description: No assignment
+  /plans/{planId}:
+    get:
+      operationId: readPlan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "403":
+          description: Caller cannot read this plan
+        "404":
+          description: No plan
+    put:
+      operationId: replacePlan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplacePlan"
+      responses:
+        "200":
+          description: Plan skills and status replaced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Invalid plan
+        "403":
+          description: Caller cannot change this plan
+        "404":
+          description: No plan
+        "409":
+          description: Approved plan cannot be changed
+  /plans/{planId}/skills/{skillId}:
+    patch:
+      operationId: editPlanSkill
+      summary: Edit a generated or changes-requested plan skill
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditSkill"
+      responses:
+        "200":
+          description: Updated plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Invalid skill
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan or skill
+        "409":
+          description: Plan cannot be edited in this status
+  /plans/{planId}/submission:
+    post:
+      operationId: submitPlan
+      summary: Submit a generated or changes-requested plan for review
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plan is under review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan
+        "409":
+          description: Plan cannot be submitted in this status
+  /plans/{planId}/change-requests:
+    post:
+      operationId: requestPlanChanges
+      summary: Request changes to a plan that is under review
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRequest"
+      responses:
+        "200":
+          description: Changes requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Reason is missing
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan
+        "409":
+          description: Plan is not under review
+  /plans/{planId}/approval:
+    post:
+      operationId: approvePlan
+      summary: Approve a plan and publish assessment.plan_approved
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approved plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan
+        "409":
+          description: Plan cannot be approved in this status
+  /plans/{planId}/versions:
+    post:
+      operationId: copyApprovedPlan
+      summary: Create the next draft version from an approved plan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: New draft copied from the approved plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          description: Plan is not approved
+        "403":
+          description: Admin role required
+        "404":
+          description: No plan
+components:
+  schemas:
+    AssignPerson:
+      type: object
+      additionalProperties: false
+      required: [personId]
+      properties:
+        personId:
+          type: string
+          minLength: 1
+        exceptionReason:
+          type: string
+          nullable: true
+          maxLength: 280
+    AssignRequest:
+      type: object
+      additionalProperties: false
+      required: [frameworkVersionId, roleId, people]
+      properties:
+        frameworkVersionId:
+          type: string
+          minLength: 1
+          description: Published framework version. The service reads it from capability-framework and does not copy its capabilities.
+        roleId:
+          type: string
+          minLength: 1
+          description: One role inside that framework version
+        people:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AssignPerson"
+    AssignmentResult:
+      type: object
+      additionalProperties: false
+      required: [personId, outcome, reason, assignmentId]
+      properties:
+        personId:
+          type: string
+        outcome:
+          type: string
+          enum: [assigned, skipped, failed]
+        reason:
+          type: string
+        assignmentId:
+          type: string
+          nullable: true
+    AssignmentBatch:
+      type: object
+      additionalProperties: false
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignmentResult"
+    Assignment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organisationId
+        - personId
+        - frameworkVersionId
+        - roleId
+        - assignedByPersonId
+        - assignedAt
+        - status
+        - exceptionReason
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        personId:
+          type: string
+        frameworkVersionId:
+          type: string
+        roleId:
+          type: string
+        assignedByPersonId:
+          type: string
+        assignedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [assigned]
+        exceptionReason:
+          type: string
+          nullable: true
+    AssessmentItemInput:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    RubricBandInput:
+      type: object
+      additionalProperties: false
+      required: [level, descriptor]
+      properties:
+        level:
+          type: integer
+          minimum: 0
+          maximum: 4
+        descriptor:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    SkillInput:
+      type: object
+      additionalProperties: false
+      required:
+        - requirementId
+        - capabilityId
+        - requiredLevel
+        - recommendedMethod
+        - rationale
+        - instructions
+        - assessmentItems
+        - rubric
+      properties:
+        requirementId:
+          type: string
+          minLength: 1
+        capabilityId:
+          type: string
+          minLength: 1
+        requiredLevel:
+          type: integer
+          minimum: 0
+          maximum: 4
+        recommendedMethod:
+          type: string
+          minLength: 1
+          maxLength: 80
+        rationale:
+          type: string
+          minLength: 1
+          maxLength: 280
+        instructions:
+          type: string
+          minLength: 1
+          maxLength: 8000
+        assessmentItems:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AssessmentItemInput"
+        rubric:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RubricBandInput"
+    GeneratePlan:
+      type: object
+      additionalProperties: false
+      required: [assignmentId]
+      properties:
+        assignmentId:
+          type: string
+          minLength: 1
+    CreatePlan:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, skills]
+      properties:
+        assignmentId:
+          type: string
+          minLength: 1
+        skills:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SkillInput"
+    EditSkill:
+      type: object
+      additionalProperties: false
+      required: [recommendedMethod, instructions, assessmentItems, rubric]
+      properties:
+        recommendedMethod:
+          type: string
+          minLength: 1
+          maxLength: 80
+        instructions:
+          type: string
+          minLength: 1
+          maxLength: 8000
+        assessmentItems:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AssessmentItemInput"
+        rubric:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RubricBandInput"
+    ChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 280
+    ReplacePlan:
+      type: object
+      additionalProperties: false
+      required: [status, skills]
+      properties:
+        status:
+          type: string
+          enum: [draft, generated, under_review, changes_requested, approved]
+        skills:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SkillInput"
+    AssessmentItem:
+      type: object
+      additionalProperties: false
+      required: [id, prompt]
+      properties:
+        id:
+          type: string
+        prompt:
+          type: string
+    RubricBand:
+      type: object
+      additionalProperties: false
+      required: [level, descriptor]
+      properties:
+        level:
+          type: integer
+        descriptor:
+          type: string
+    PlanSkill:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - requirementId
+        - capabilityId
+        - requiredLevel
+        - recommendedMethod
+        - rationale
+        - instructions
+        - requiresSmeReview
+        - rubricNeedsReview
+        - assessmentItems
+        - rubric
+      properties:
+        id:
+          type: string
+        requirementId:
+          type: string
+        capabilityId:
+          type: string
+        requiredLevel:
+          type: integer
+        recommendedMethod:
+          type: string
+        rationale:
+          type: string
+        instructions:
+          type: string
+        requiresSmeReview:
+          type: boolean
+        rubricNeedsReview:
+          type: boolean
+        editedByPersonId:
+          type: string
+        assessmentItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssessmentItem"
+        rubric:
+          type: array
+          items:
+            $ref: "#/components/schemas/RubricBand"
+    Plan:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, assignmentId, versionNumber, status, skills]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        assignmentId:
+          type: string
+        versionNumber:
+          type: integer
+        status:
+          type: string
+          enum: [draft, generated, under_review, changes_requested, approved]
+        changeReason:
+          type: string
+        approvedByPersonId:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanSkill"

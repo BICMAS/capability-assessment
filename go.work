@@ -3,6 +3,7 @@ go 1.27
 use (
 	.
 	./services/assessment-gap
+	./services/assessment-plan
 	./services/audit
 	./services/capability-framework
 	./services/development

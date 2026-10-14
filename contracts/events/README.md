@@ -6,3 +6,5 @@ Cross-service events live here as JSON Schema, beside the OpenAPI specifications
 - `framework.published` — a framework version was published
 - `level.overridden` — a manager replaced a calculated level
 - `learning.completed` — a pathway learning item was completed
+- `assessment.assigned` — an admin assigned a person to a published framework role
+- `assessment.plan_approved` — an admin approved an assessment plan

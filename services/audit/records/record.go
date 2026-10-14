@@ -6,16 +6,20 @@ import (
 )
 
 const (
-	ActionPersonSignedIn       = "person.signed_in"
-	ActionAssignmentChanged    = "assignment.changed"
-	ActionFrameworkPublished   = "framework.published"
-	ActionLevelOverridden      = "level.overridden"
-	ActionLearningCompleted    = "learning.completed"
-	EntityTypePerson           = "person"
-	EntityTypeRoleAssignment   = "role_assignment"
-	EntityTypeFrameworkVersion = "framework_version"
-	EntityTypeLevelOverride    = "level_override"
-	EntityTypePlanItem         = "plan_item"
+	ActionPersonSignedIn           = "person.signed_in"
+	ActionAssignmentChanged        = "assignment.changed"
+	ActionFrameworkPublished       = "framework.published"
+	ActionLevelOverridden          = "level.overridden"
+	ActionLearningCompleted        = "learning.completed"
+	ActionAssessmentAssigned       = "assessment.assigned"
+	ActionAssessmentPlanApproved   = "assessment.plan_approved"
+	EntityTypePerson               = "person"
+	EntityTypeRoleAssignment       = "role_assignment"
+	EntityTypeFrameworkVersion     = "framework_version"
+	EntityTypeLevelOverride        = "level_override"
+	EntityTypePlanItem             = "plan_item"
+	EntityTypeAssessmentAssignment = "assessment_assignment"
+	EntityTypeAssessmentPlan       = "assessment_plan"
 )
 
 type Record struct {
