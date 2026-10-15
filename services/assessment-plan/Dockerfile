@@ -2,6 +2,7 @@ FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY services/token /src/services/token
+COPY services/assessment-gap /src/services/assessment-gap
 COPY services/assessment-plan /src/services/assessment-plan
 WORKDIR /src/services/assessment-plan
 RUN go mod download
