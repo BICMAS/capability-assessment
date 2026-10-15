@@ -30,14 +30,9 @@ export function TeamRow({
 
   return (
     <a className="team-row" href={`/manager/people/${personId}`}>
-      <span className="team-name">{personName}</span>
-      <span className="team-role">{roles.join(", ")}</span>
-      <span className="team-gap">
-        {priority.map((item) => (
-          <span key={item.capabilityCode}>
-            {item.name} {item.explanation.gap}
-          </span>
-        ))}
+      <span className="team-identity">
+        <span className="team-name">{personName}</span>
+        <span className="team-role">{roles.join(", ")}</span>
       </span>
       <span className="team-bands">
         <Band label="Strengths" tone="band-strength" items={strengths} />
@@ -94,7 +89,7 @@ export function PersonRecord({
                 Evidence
                 <input name="evidence" type="text" required />
               </label>
-              <button type="submit">Save manager assessment</button>
+              <button className="primary" type="submit">Save manager assessment</button>
             </form>
           </article>
         ))}

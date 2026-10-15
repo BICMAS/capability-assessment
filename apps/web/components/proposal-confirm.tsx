@@ -27,8 +27,9 @@ export function ProposalConfirm({
       {pending.map((session) => (
         <article key={session.id} className="capability-figures">
           {(session.proposals ?? []).map((proposal) => (
-            <p key={`${session.id}-${proposal.capabilityId}`}>
-              {sourceLabels[proposal.source] ?? proposal.source}: {proposal.percentage}
+            <p key={`${session.id}-${proposal.capabilityId}`} className="proposal-line">
+              {sourceLabels[proposal.source] ?? proposal.source}{" "}
+              <span className="proposal-percentage">{proposal.percentage}</span>
             </p>
           ))}
           <form action={action}>
@@ -37,7 +38,7 @@ export function ProposalConfirm({
             {(hidden ?? []).map((field) => (
               <input key={field.name} type="hidden" name={field.name} value={field.value} />
             ))}
-            <button type="submit">Confirm</button>
+            <button className="primary" type="submit">Confirm</button>
           </form>
         </article>
       ))}

@@ -30,17 +30,22 @@ export default async function EmployeePage({
   const titles = new Set(profile.roles.map((role) => role.title));
   const ownSessions = sessions.filter((session) => session.personId === profile.id);
 
+  const roleLine = profile.roles.map((role) => role.title).join(" · ");
+  const frameworkLine = [...new Set(frameworks.map((framework) => `${framework.frameworkName} v${framework.versionNumber}`))].join(" · ");
+
   return (
     <>
+      <h2 className="briefing-heading">
+        {roleLine ? <span className="briefing-role">{roleLine}</span> : null}
+        {roleLine && frameworkLine ? <span className="briefing-mark" aria-hidden="true" /> : null}
+        {frameworkLine ? <span className="briefing-framework">{frameworkLine}</span> : null}
+      </h2>
       {ownSessions.length > 0 ? (
-        <section className="capability-board">
-          <h2>Assessment</h2>
+        <section className="briefing-session">
           {params.sessionError ? <p className="login-error">{params.sessionError}</p> : null}
           {ownSessions.map((session) => (
-            <article key={session.id} className="primary-capability">
-              <p className="studio-status">
-                <span className="studio-lock">{session.status}</span>
-              </p>
+            <article key={session.id} className="correspondence">
+              <p className="correspondence-status">{session.status}</p>
               {session.status === "submitted" && session.confirmed
                 ? (session.proposals ?? []).map((proposal) => (
                     <p key={proposal.capabilityId} className="provisional">
@@ -50,56 +55,44 @@ export default async function EmployeePage({
                 : null}
               {session.status === "submitted" ? (
                 session.skills.map((skill, index) => (
-                  <div key={`${session.id}-${index}`} className="plan-skill">
-                    <p>{skill.instructions}</p>
-                    <ul>
-                      {skill.items.map((item) => (
-                        <li key={item.id}>
-                          <p>{item.prompt}</p>
-                          <p>{item.answer}</p>
-                        </li>
-                      ))}
-                    </ul>
+                  <div key={`${session.id}-${index}`} className="letter">
+                    <p className="letter-instructions">{skill.instructions}</p>
+                    {skill.items.map((item) => (
+                      <div key={item.id} className="letter-exchange">
+                        <p className="letter-prompt">{item.prompt}</p>
+                        <p className="letter-answer">{item.answer}</p>
+                      </div>
+                    ))}
                   </div>
                 ))
               ) : (
                 <form action={submitSessionAnswers} className="framework-form">
                   <input type="hidden" name="sessionId" value={session.id} />
                   {session.skills.map((skill, index) => (
-                    <div key={`${session.id}-${index}`} className="plan-skill">
-                      <p>{skill.instructions}</p>
+                    <div key={`${session.id}-${index}`} className="letter">
+                      <p className="letter-instructions">{skill.instructions}</p>
                       {skill.items.map((item) => (
-                        <label key={item.id}>
+                        <label key={item.id} className="letter-prompt">
                           {item.prompt}
                           <textarea name={`answer.${item.id}`} required maxLength={8000} defaultValue={item.answer} />
                         </label>
                       ))}
                     </div>
                   ))}
-                  <button type="submit">Submit answers</button>
+                  <button className="primary" type="submit">
+                    Submit answers
+                  </button>
                 </form>
               )}
             </article>
           ))}
         </section>
       ) : null}
-    <section className="capability-board">
-      <h2>Role</h2>
-      <ul>
-        {profile.roles.map((role) => (
-          <li key={role.id}>{role.title}</li>
+      <div className="capability-list">
+        {frameworks.map((framework) => (
+          <FrameworkLevels key={framework.id} token={token} personId={profile.id} framework={framework} roleTitles={titles} />
         ))}
-      </ul>
-      <h2>Published framework</h2>
-      {frameworks.map((framework) => (
-        <article key={framework.id}>
-          <h3>
-            {framework.frameworkName} v{framework.versionNumber}
-          </h3>
-          <FrameworkLevels token={token} personId={profile.id} framework={framework} roleTitles={titles} />
-        </article>
-      ))}
-    </section>
+      </div>
     </>
   );
 }
@@ -159,9 +152,9 @@ async function FrameworkLevels({
   const ordered = [...rows].sort((left, right) => Number(right.explanation !== null) - Number(left.explanation !== null));
 
   return (
-    <div className="capability-list">
+    <>
       {ordered.map(({ requirement, capability, explanation, pathway }) => (
-        <div key={requirement.id} className={explanation ? "primary-capability" : undefined}>
+        <div key={requirement.id} className="primary-capability">
           {explanation ? (
             <CapabilityInstrument name={capability?.name ?? "Capability"} explanation={explanation} />
           ) : (
@@ -170,6 +163,6 @@ async function FrameworkLevels({
           {pathway ? <PathwayView pathway={pathway} /> : null}
         </div>
       ))}
-    </div>
+    </>
   );
 }

@@ -113,14 +113,15 @@ export function AssignmentStep({
           </select>
         </label>
         {role ? (
-          <div>
+          <div className="role-brief">
             <h3>{role.name}</h3>
-            <ul>
+            <ul className="role-levels">
               {requirements.map((requirement) => {
                 const capability = version?.capabilities.find((item) => item.id === requirement.capabilityId);
                 return (
                   <li key={requirement.id}>
-                    {capability?.name ?? "Capability"} · level {requirement.requiredLevel}
+                    <span>{capability?.name ?? "Capability"}</span>
+                    <span className="role-level">{requirement.requiredLevel}</span>
                   </li>
                 );
               })}
@@ -140,7 +141,7 @@ export function AssignmentStep({
           <input key={person.id} type="hidden" name="mismatchPersonId" value={person.id} />
         ))}
         {error ? <p className="login-error">{error}</p> : null}
-        <button type="submit" disabled={selected.length === 0 || !role}>
+        <button className="primary" type="submit" disabled={selected.length === 0 || !role}>
           Confirm assignment
         </button>
       </form>

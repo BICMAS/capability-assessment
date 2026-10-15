@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/require-session";
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await requireSession("admin");
   return (
-    <PortalShell title="Frameworks" href="/admin" session={session}>
+    <PortalShell title="Studio" kicker="Admin" href="/admin" session={session}>
       {children}
     </PortalShell>
   );

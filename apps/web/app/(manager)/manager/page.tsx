@@ -28,7 +28,7 @@ export default async function ManagerPage() {
 
   return (
     <section className="team-home">
-      <ul>
+      <ul className="team-board">
         {members.map(({ person, roles, capabilities }) => (
           <li key={person.id}>
             <TeamRow personId={person.id} personName={person.name} roles={roles} capabilities={capabilities} />

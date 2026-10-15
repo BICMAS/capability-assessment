@@ -10,9 +10,9 @@ export default async function LoginPage({
       <div className="entrance-title">
         <p className="mark">BICMAS</p>
         <h1>Learn</h1>
+        <p className="entrance-line">AI coaches. Managers develop. People perform.</p>
       </div>
       <section className="entrance-card">
-        <p className="entrance-line">AI coaches. Managers develop. People perform.</p>
         {params.error ? <p className="login-error">Sign-in failed.</p> : null}
         <form className="entrance-choices" action="/session" method="post">
           <button type="submit" name="person" value="ada">

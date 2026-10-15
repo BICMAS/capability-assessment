@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/require-session";
 export default async function ManagerLayout({ children }: { children: ReactNode }) {
   const session = await requireSession("manager");
   return (
-    <PortalShell title="My team" href="/manager" session={session}>
+    <PortalShell title="My team" kicker="Team" href="/manager" session={session}>
       {children}
     </PortalShell>
   );

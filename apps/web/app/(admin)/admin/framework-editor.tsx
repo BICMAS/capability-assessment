@@ -60,13 +60,13 @@ export function FrameworkEditor({
               Framework
               <input name="frameworkName" defaultValue="Sales capability framework" required />
             </label>
-            <button type="submit">Create draft</button>
+            <button className="primary" type="submit">Create draft</button>
           </form>
         ) : null}
       </div>
       <div className="studio-versions">
         {ordered.map((version) => (
-          <article key={version.id} className="studio-version">
+          <article key={version.id} className={version.status === "published" ? "studio-version studio-document" : "studio-version"}>
             <div className="studio-identity">
               <VersionSummary version={version} />
               {version.rowErrors.length > 0 ? (
@@ -102,7 +102,7 @@ export function FrameworkEditor({
                             <form action={acceptProposal}>
                               <input type="hidden" name="versionId" value={version.id} />
                               <input type="hidden" name="proposalId" value={proposal.id} />
-                              <button type="submit">Accept {proposal.capabilityCode}</button>
+                              <button className="primary" type="submit">Accept {proposal.capabilityCode}</button>
                             </form>
                           </div>
                         ) : null}
@@ -119,21 +119,21 @@ export function FrameworkEditor({
                 <form action={submitFrameworkForReview}>
                   <input type="hidden" name="versionId" value={version.id} />
                   {blockedNote(reviewBlocked, blockedAction, "submit", version.id, blockedVersionId)}
-                  <button type="submit">Submit {version.frameworkName} for review</button>
+                  <button className="primary" type="submit">Submit {version.frameworkName} for review</button>
                 </form>
               ) : null}
               {version.status === "draft" || version.status === "in_review" ? (
                 <form action={approveFramework}>
                   <input type="hidden" name="versionId" value={version.id} />
                   {blockedNote(reviewBlocked, blockedAction, "approve", version.id, blockedVersionId)}
-                  <button type="submit">Approve {version.frameworkName}</button>
+                  <button className="primary" type="submit">Approve {version.frameworkName}</button>
                 </form>
               ) : null}
               {version.status === "approved" ? (
                 <form action={publishFramework}>
                   <input type="hidden" name="versionId" value={version.id} />
                   {blockedNote(reviewBlocked, blockedAction, "publish", version.id, blockedVersionId)}
-                  <button type="submit">Publish {version.frameworkName}</button>
+                  <button className="primary" type="submit">Publish {version.frameworkName}</button>
                 </form>
               ) : null}
               <DraftSteps version={version} />
@@ -206,7 +206,7 @@ function NegotiationEditor({ version, saveError }: { version: FrameworkVersion; 
         <textarea name="statement" required defaultValue={indicator.statement} />
       </label>
       {saveError ? <p className="login-error">{saveError}</p> : null}
-      <button type="submit">Save Negotiation</button>
+      <button className="primary" type="submit">Save Negotiation</button>
     </form>
   );
 }
@@ -223,7 +223,7 @@ function DraftSteps({ version }: { version: FrameworkVersion }) {
           Role
           <input name="roleName" defaultValue="Area Sales Manager" required />
         </label>
-        <button type="submit">Add role</button>
+        <button className="primary" type="submit">Add role</button>
       </form>
     );
   }
@@ -240,7 +240,7 @@ function DraftSteps({ version }: { version: FrameworkVersion }) {
           Required level
           <input name="requiredLevel" type="number" min={0} max={4} defaultValue={4} required />
         </label>
-        <button type="submit">Add capability</button>
+        <button className="primary" type="submit">Add capability</button>
       </form>
     );
   }
@@ -254,7 +254,7 @@ function DraftSteps({ version }: { version: FrameworkVersion }) {
           Behavioural indicator
           <textarea name="indicator" required defaultValue="Reaches a commercial agreement with the buyer." />
         </label>
-        <button type="submit">Save draft</button>
+        <button className="primary" type="submit">Save draft</button>
       </form>
     );
   }

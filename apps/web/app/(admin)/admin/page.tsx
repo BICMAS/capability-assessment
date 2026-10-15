@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { listAuditRecords, type AuditRecord } from "@/lib/audit";
-import { listFrameworkVersions } from "@/lib/capability-framework";
+import { listFrameworkVersions, type FrameworkVersion } from "@/lib/capability-framework";
 import { listAssessmentSessions, readAssignment, readPlan, type AssessmentSession, type AssignmentResult } from "@/lib/generated/assessment-plan/plans";
 import { listDepartments, listPeople, listRoleAssignments } from "@/lib/org-directory";
 import { SESSION_COOKIE } from "@/lib/session";
@@ -49,6 +49,7 @@ export default async function AdminPage({
     titles.set(roleAssignment.personId, current);
   }
   const published = versions.filter((version) => version.status === "published");
+  const assignmentResults = decodeResults(params.results);
   const selectedVersion = versions.find((version) => version.id === assessment.assignment?.frameworkVersionId) ?? null;
   const selectedRole = selectedVersion?.roles.find((role) => role.id === assessment.assignment?.roleId);
   const personName = people.find((person) => person.id === assessment.assignment?.personId)?.name ?? "Person";
@@ -61,7 +62,10 @@ export default async function AdminPage({
   return (
     <div className="studio-page">
       <section className="studio-region">
-        <h2>Studio</h2>
+        <header className="studio-step">
+          <h2>Frameworks</h2>
+          <p className="studio-step-status">{frameworkStatus(versions)}</p>
+        </header>
         <FrameworkEditor
           versions={versions}
           reviewBlocked={params.review === "blocked"}
@@ -75,7 +79,12 @@ export default async function AdminPage({
         />
       </section>
       <section className="studio-region" id="assignments">
-        <h2>Assignments</h2>
+        <header className="studio-step">
+          <h2>Assignments</h2>
+          <p className={assignmentResults.some((result) => result.outcome === "failed") ? "studio-step-status is-error" : "studio-step-status"}>
+            {assignmentStatus(assignmentResults)}
+          </p>
+        </header>
         <AssignmentStep
           people={people.map((person) => ({
             id: person.id,
@@ -91,12 +100,17 @@ export default async function AdminPage({
             capabilities: version.capabilities.map((capability) => ({ id: capability.id, name: capability.name })),
             requirements: version.requirements,
           }))}
-          results={decodeResults(params.results)}
+          results={assignmentResults}
           error={params.assignmentError ?? ""}
         />
       </section>
       <section className="studio-region" id="plans">
-        <h2>Plans</h2>
+        <header className="studio-step">
+          <h2>Plans</h2>
+          <p className={assessment.error ? "studio-step-status is-error" : "studio-step-status"}>
+            {planStatus(assessment, personName, selectedRole?.name ?? "", approverName)}
+          </p>
+        </header>
         {assessment.assignment ? (
           <PlanStep
             assignment={assessment.assignment}
@@ -212,6 +226,55 @@ function isAssignmentResult(value: unknown): value is AssignmentResult {
     typeof row.reason === "string" &&
     (row.assignmentId === null || typeof row.assignmentId === "string")
   );
+}
+
+function frameworkStatus(versions: FrameworkVersion[]): string {
+  const published = versions.filter((version) => version.status === "published");
+  const open = versions.filter((version) => version.status !== "published" && version.status !== "retired");
+  if (versions.length === 0) {
+    return "No framework yet.";
+  }
+  const locked =
+    published.length === 0
+      ? "Nothing is published."
+      : published.length === 1
+        ? `${published[0]?.frameworkName ?? "Framework"} v${published[0]?.versionNumber ?? ""} is locked.`
+        : `${published.length} published documents are locked.`;
+  if (open.length === 0) {
+    return locked;
+  }
+  return `${locked} ${open.length === 1 ? "One version is still open." : `${open.length} versions are still open.`}`;
+}
+
+function assignmentStatus(results: AssignmentResult[]): string {
+  if (results.length === 0) {
+    return "Search people, choose a published role, then confirm.";
+  }
+  const assigned = results.filter((result) => result.outcome === "assigned").length;
+  const skipped = results.filter((result) => result.outcome === "skipped").length;
+  const failed = results.filter((result) => result.outcome === "failed").length;
+  return [assigned > 0 ? `${assigned} assigned` : "", skipped > 0 ? `${skipped} skipped` : "", failed > 0 ? `${failed} failed` : ""]
+    .filter((part) => part.length > 0)
+    .join(" · ");
+}
+
+function planStatus(
+  assessment: { assignment: { id: string } | null; plan: { status: string } | null; error: string },
+  personName: string,
+  roleName: string,
+  approverName: string,
+): string {
+  if (!assessment.assignment) {
+    return assessment.error || "Confirm an assignment to generate a plan.";
+  }
+  const who = `${personName} · ${roleName || "Role"}`;
+  if (!assessment.plan) {
+    return `${who}. Ready to generate.`;
+  }
+  if (assessment.plan.status === "approved") {
+    return `${who}. Approved by ${approverName}.`;
+  }
+  return `${who}. ${assessment.plan.status.replaceAll("_", " ")}.`;
 }
 
 function recordTime(record: AuditRecord): string {

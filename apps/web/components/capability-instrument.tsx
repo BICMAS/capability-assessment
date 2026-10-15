@@ -54,12 +54,22 @@ export function CapabilityInstrument({
         </div>
         <div>
           <dt>Gap</dt>
-          <dd className="tone-gap">{explanation.gap}</dd>
+          <dd className={gapTone(explanation.gap)}>{explanation.gap}</dd>
         </div>
       </dl>
       <EvidenceRow explanation={explanation} />
     </article>
   );
+}
+
+function gapTone(gap: string): string {
+  if (gap.startsWith("-") || gap === "0.0") {
+    return "tone-strength";
+  }
+  if (gap.startsWith("0.")) {
+    return "";
+  }
+  return "tone-gap";
 }
 
 export function RequiredOnly({ name, requiredLevel }: { name: string; requiredLevel: number }) {

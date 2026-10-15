@@ -56,7 +56,7 @@ export function PlanStep({
             <form action={submitPlanForReview}>
               <input type="hidden" name="assignmentId" value={assignment.id} />
               <input type="hidden" name="planId" value={plan.id} />
-              <button type="submit">Submit for review</button>
+              <button className="primary" type="submit">Submit for review</button>
             </form>
           ) : null}
           {plan.status === "under_review" ? (
@@ -70,7 +70,15 @@ export function PlanStep({
               <button type="submit">Request changes</button>
             </form>
           ) : null}
-          {session ? (
+          {session && session.confirmed ? (
+            <div className="plan-confirmed">
+              {(session.proposals ?? []).map((proposal) => (
+                <p key={proposal.capabilityId} className="proposal-line">
+                  {sourceLabel(proposal.source)} <span className="proposal-percentage">{proposal.percentage}</span>
+                </p>
+              ))}
+            </div>
+          ) : session ? (
             <ProposalConfirm
               personId={assignment.personId}
               sessions={[session]}
@@ -85,14 +93,14 @@ export function PlanStep({
             <form action={approveAssessmentPlan}>
               <input type="hidden" name="assignmentId" value={assignment.id} />
               <input type="hidden" name="planId" value={plan.id} />
-              <button type="submit">Approve plan</button>
+              <button className="primary" type="submit">Approve plan</button>
             </form>
           ) : null}
         </>
       ) : (
         <form action={generatePlan}>
           <input type="hidden" name="assignmentId" value={assignment.id} />
-          <button type="submit">Generate plan</button>
+          <button className="primary" type="submit">Generate plan</button>
         </form>
       )}
     </div>
@@ -154,31 +162,48 @@ function SkillCard({
               </label>
             </div>
           ))}
-          <button type="submit">Save skill</button>
+          <button className="primary" type="submit">Save skill</button>
         </form>
       ) : (
-        <>
-          <p>Method · {skill.recommendedMethod}</p>
-          <p>{skill.instructions}</p>
+        <div className="plan-read">
+          <p className="plan-method">
+            <span>Method</span> {skill.recommendedMethod}
+          </p>
+          <p className="plan-rationale">{skill.rationale}</p>
+          <p className="plan-instructions">{skill.instructions}</p>
           <h4>Items</h4>
-          <ul>
+          <ul className="plan-items">
             {skill.assessmentItems.map((item) => (
               <li key={item.id}>{item.prompt}</li>
             ))}
           </ul>
           <h4>Rubric</h4>
           {skill.rubric.length === 0 ? <p>The rubric needs review.</p> : null}
-          <ul>
+          <ul className="plan-rubric">
             {skill.rubric.map((band) => (
               <li key={`${skill.id}-${band.level}`}>
-                Level {band.level} · {band.descriptor}
+                <span>Level {band.level}</span>
+                {band.descriptor}
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
     </article>
   );
+}
+
+function sourceLabel(source: string): string {
+  switch (source) {
+    case "knowledge":
+      return "Knowledge";
+    case "situational_judgement":
+      return "Situational judgement";
+    case "ai_interview":
+      return "AI interview";
+    default:
+      return source;
+  }
 }
 
 function capabilityName(version: FrameworkVersion | null, capabilityId: string): string {

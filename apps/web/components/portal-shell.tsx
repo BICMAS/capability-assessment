@@ -4,36 +4,36 @@ import type { Session } from "@/lib/gateway";
 
 export function PortalShell({
   title,
+  kicker,
   href,
   session,
-  rail = false,
   children,
 }: {
   title: string;
+  kicker: string;
   href: string;
   session: Session;
-  rail?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className={rail ? "app app-rail" : "app"}>
+    <div className="app">
       <nav className="nav">
-        <p className="mark">BICMAS</p>
+        <div className="nav-brand">
+          <p className="mark">BICMAS</p>
+          <p className="nav-name">{session.name}</p>
+        </div>
         <a href={href} aria-current="page">
           {title}
         </a>
-        <div className="nav-session">
-          <p className="nav-name">{session.name}</p>
-          <form action="/session/sign-out" method="post">
-            <button type="submit">Sign out</button>
-          </form>
-        </div>
+        <form className="nav-session" action="/session/sign-out" method="post">
+          <button type="submit">Sign out</button>
+        </form>
       </nav>
       <main className="main">
+        <p className="kicker">{kicker}</p>
         <h1>{title}</h1>
         {children}
       </main>
-      {rail ? <aside className="rail" /> : null}
     </div>
   );
 }
