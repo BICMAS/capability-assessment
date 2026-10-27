@@ -20,8 +20,8 @@ export function RoleProfileFrame({
 }) {
   return (
     <div className="role-profile">
-      <WorkflowStepper profileId={profile?.id} current={current} />
-      <h2>{profile ? profile.roleName : "Role skills profiles"}</h2>
+      {profile ? <WorkflowStepper profileId={profile.id} current={current} /> : null}
+      {profile ? <h2>{profile.roleName}</h2> : null}
       {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       {notice ? <StatusMessage tone="success">{notice}</StatusMessage> : null}
       {children}

@@ -318,8 +318,8 @@ function VersionSummary({ version }: { version: FrameworkVersion }) {
 
 function StatusMark({ status }: { status: string }) {
   return (
-    <p className={status === "published" ? "studio-status studio-locked" : "studio-status"}>
-      <span>{statusLabel(status)}</span>
+    <p className="studio-status">
+      <span className="status-pill">{statusLabel(status)}</span>
       {status === "published" ? <span className="studio-lock">Locked</span> : null}
     </p>
   );
@@ -328,15 +328,15 @@ function StatusMark({ status }: { status: string }) {
 function statusLabel(status: string): string {
   switch (status) {
     case "draft":
-      return "draft";
+      return "Draft";
     case "in_review":
-      return "in review";
+      return "In review";
     case "approved":
-      return "approved";
+      return "Approved";
     case "published":
-      return "published";
+      return "Published";
     case "retired":
-      return "retired";
+      return "Retired";
     default:
       return status;
   }

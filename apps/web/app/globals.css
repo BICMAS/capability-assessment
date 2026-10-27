@@ -406,7 +406,7 @@ input[type="file"]::file-selector-button {
 
 .portal-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 1rem;
 }
 
@@ -442,6 +442,15 @@ input[type="file"]::file-selector-button {
   background: #e7f7cf;
   color: #14301c;
   font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.home-back {
+  margin: 0;
+}
+
+.home-back a {
+  color: var(--accent);
   font-weight: 650;
 }
 
@@ -1502,6 +1511,10 @@ input[type="file"]::file-selector-button {
     grid-template-columns: 1fr;
   }
 
+  .directory-layout {
+    grid-template-columns: 1fr;
+  }
+
   .nav {
     min-height: 0;
     border-right: 0;
@@ -1755,6 +1768,102 @@ input[type="file"]::file-selector-button {
 .workflow-choices a {
   display: grid;
   gap: 0.2rem;
+}
+
+.directory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(16rem, 0.8fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.directory-people,
+.directory-actions {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06);
+  padding: 1.5rem;
+}
+
+.directory-people h2,
+.directory-actions h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.directory-people .portal-note,
+.directory-actions .portal-note {
+  margin: 0;
+}
+
+.department-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.department-pills a {
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  background: var(--field);
+  text-decoration: none;
+}
+
+.department-pills a[aria-current="true"] {
+  background: #e7f7cf;
+  color: #14301c;
+  font-weight: 650;
+}
+
+.directory-group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.directory-group + .directory-group {
+  margin-top: 0.35rem;
+}
+
+.organogram li {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.directory-muted {
+  color: #5c6558;
+}
+
+.directory-actions .learn-link {
+  text-align: center;
+  border-radius: 999px;
+}
+
+.directory-create {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f6f8f3;
+}
+
+.directory-create:hover {
+  background: #245734;
+  color: #f6f8f3;
+}
+
+.directory-secondary {
+  background: #fff;
+}
+
+.directory-actions .framework-form {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.4rem;
 }
 
 .skill-scroll {

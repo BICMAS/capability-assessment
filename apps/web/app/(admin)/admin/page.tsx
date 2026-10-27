@@ -18,6 +18,8 @@ import { listDepartments, listPeople, listRoleAssignments } from "@/lib/org-dire
 import { settle } from "@/lib/safe";
 import { SESSION_COOKIE } from "@/lib/session";
 
+import { homeFocus } from "./home-focus";
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage({
@@ -36,6 +38,8 @@ export default async function AdminPage({
     results?: string;
     assignmentError?: string;
     planError?: string;
+    focus?: string;
+    record?: string;
   }>;
 }) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -75,29 +79,79 @@ export default async function AdminPage({
     params.save === "frozen" && params.framework && params.version
       ? `${params.framework} version ${params.version} cannot be changed.`
       : "";
+  const focus = homeFocus(params);
+  const recordList = records.ok ? [...records.value].sort(newestFirst) : [];
+  const shownRecords = params.record === "all" ? recordList : recordList.slice(0, 5);
+  const actorNames = new Map(peopleList.map((person) => [person.id, person.name]));
 
   return (
     <div className="studio-page">
-      <section className="portal-home" aria-label="What needs you today">
-        <p className="portal-lead">What needs you today</p>
-        <div className="portal-cards">
-          <a href="#frameworks">
-            <span>Frameworks</span>
-            <strong>{versions.ok ? versionList.length : "—"}</strong>
-            <span>{versions.ok ? "Open the editor" : versions.error}</span>
-          </a>
-          <a href="#assignments">
-            <span>Assignments</span>
-            <strong>{versions.ok ? published.length : "—"}</strong>
-            <span>{versions.ok ? "Published versions ready to assign" : versions.error}</span>
-          </a>
-          <a href="#plans">
-            <span>Plans</span>
-            <strong>{assessment.assignment ? "Open" : "None"}</strong>
-            <span>{assessment.assignment ? `${personName} is selected` : "Confirm an assignment to generate a plan."}</span>
-          </a>
-        </div>
-      </section>
+      {focus === "overview" ? (
+        <>
+          <section className="portal-home" aria-label="What needs you today">
+            <p className="portal-lead">What needs you today</p>
+            <div className="portal-cards">
+              <a href="/admin?focus=frameworks">
+                <span>Frameworks</span>
+                <strong>{versions.ok ? versionList.length : "—"}</strong>
+                <span>{versions.ok ? "Open the editor" : versions.error}</span>
+              </a>
+              <a href="/admin?focus=assignments">
+                <span>Assignments</span>
+                <strong>{versions.ok ? published.length : "—"}</strong>
+                <span>{versions.ok ? "Published versions ready to assign" : versions.error}</span>
+              </a>
+              <a href={plansHref(params.assignment, params.plan)}>
+                <span>Plans</span>
+                <strong>{assessment.assignment ? "Open" : "None"}</strong>
+                <span>{assessment.assignment ? `${personName} is selected` : "Confirm an assignment to generate a plan."}</span>
+              </a>
+              <a href="/admin?focus=organisation">
+                <span>Organisation</span>
+                <strong>{departments.ok ? departments.value.length : "—"}</strong>
+                <span>
+                  {departments.ok && roleAssignments.ok
+                    ? `${roleAssignments.value.length} role assignments`
+                    : !departments.ok
+                      ? departments.error
+                      : roleAssignments.ok
+                        ? ""
+                        : roleAssignments.error}
+                </span>
+              </a>
+            </div>
+          </section>
+          <section className="studio-region">
+            <h2>Recent record</h2>
+            {!records.ok ? (
+              <StatusMessage tone="error">{records.error}</StatusMessage>
+            ) : (
+              <>
+                <ul className="record-list">
+                  {shownRecords.length === 0 ? <li className="record-empty">None</li> : null}
+                  {shownRecords.map((record) => (
+                    <li key={`${record.action}-${record.entityId}-${record.occurredAt}`}>
+                      <span className="record-action">{record.action}</span>
+                      <span className="record-actor">{actorNames.get(record.actorPersonId) ?? record.actorPersonId}</span>
+                      <time dateTime={record.occurredAt}>{recordTime(record)}</time>
+                    </li>
+                  ))}
+                </ul>
+                {params.record === "all" ? (
+                  <a href="/admin">Show recent</a>
+                ) : recordList.length > 5 ? (
+                  <a href="/admin?record=all">Show all</a>
+                ) : null}
+              </>
+            )}
+          </section>
+        </>
+      ) : (
+        <p className="home-back">
+          <a href="/admin">Back to home</a>
+        </p>
+      )}
+      {focus === "frameworks" ? (
       <section className="studio-region" id="frameworks">
         <header className="studio-step">
           <h2>Frameworks</h2>
@@ -119,6 +173,8 @@ export default async function AdminPage({
           <StatusMessage tone="error">{versions.error}</StatusMessage>
         )}
       </section>
+      ) : null}
+      {focus === "assignments" ? (
       <section className="studio-region" id="assignments">
         <header className="studio-step">
           <h2>Assignments</h2>
@@ -155,6 +211,8 @@ export default async function AdminPage({
           </StatusMessage>
         )}
       </section>
+      ) : null}
+      {focus === "plans" ? (
       <section className="studio-region" id="plans">
         <header className="studio-step">
           <h2>Plans</h2>
@@ -177,6 +235,8 @@ export default async function AdminPage({
           <EmptyState>{assessment.error || "Confirm an assignment to generate a plan."}</EmptyState>
         )}
       </section>
+      ) : null}
+      {focus === "organisation" ? (
       <section className="studio-region">
         <h2>Organisation</h2>
         {!departments.ok || !roleAssignments.ok ? (
@@ -210,25 +270,24 @@ export default async function AdminPage({
           </div>
         )}
       </section>
-      <section className="studio-region">
-        <h2>Record</h2>
-        {!records.ok ? (
-          <StatusMessage tone="error">{records.error}</StatusMessage>
-        ) : (
-          <ul className="record-list">
-            {records.value.length === 0 ? <li className="record-empty">None</li> : null}
-            {records.value.map((record) => (
-              <li key={`${record.action}-${record.entityId}-${record.occurredAt}`}>
-                <span className="record-action">{record.action}</span>
-                <span className="record-actor">{record.actorPersonId}</span>
-                <time dateTime={record.occurredAt}>{recordTime(record)}</time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      ) : null}
     </div>
   );
+}
+
+function plansHref(assignment?: string, plan?: string): string {
+  const query = new URLSearchParams({ focus: "plans" });
+  if (assignment) {
+    query.set("assignment", assignment);
+  }
+  if (plan) {
+    query.set("plan", plan);
+  }
+  return `/admin?${query.toString()}`;
+}
+
+function newestFirst(left: AuditRecord, right: AuditRecord): number {
+  return Date.parse(right.occurredAt) - Date.parse(left.occurredAt);
 }
 
 async function personSessions(token: string, personId: string): Promise<AssessmentSession[]> {

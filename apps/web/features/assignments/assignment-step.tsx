@@ -154,7 +154,7 @@ export function AssignmentStep({
               <span>{names.get(result.personId) ?? result.personId}</span>
               <span className="studio-lock">{result.outcome}</span>
               <span>{result.reason}</span>
-              {result.assignmentId ? <a href={`/admin?assignment=${encodeURIComponent(result.assignmentId)}#plans`}>Open plan</a> : null}
+              {result.assignmentId ? <a href={`/admin?assignment=${encodeURIComponent(result.assignmentId)}&focus=plans`}>Open plan</a> : null}
             </li>
           ))}
         </ul>
