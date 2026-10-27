@@ -31,15 +31,14 @@ export default async function EmployeePage({
   const ownSessions = sessions.filter((session) => session.personId === profile.id);
 
   const roleLine = profile.roles.map((role) => role.title).join(" · ");
-  const frameworkLine = [...new Set(frameworks.map((framework) => `${framework.frameworkName} v${framework.versionNumber}`))].join(" · ");
+  const waiting = ownSessions.some((session) => session.status !== "submitted");
 
   return (
     <>
       <header className="portal-intro">
-        <p className="portal-lead">{profile.name}</p>
-        <p>{roleLine || "No role is recorded yet."}</p>
-        {frameworkLine ? <p className="portal-note">{frameworkLine}</p> : null}
-        {ownSessions.some((session) => session.status !== "submitted") ? <p className="portal-note">An assessment is waiting.</p> : null}
+        <h1>{profile.name}</h1>
+        {roleLine ? <p className="status-pill">{roleLine}</p> : <p>No role is recorded yet.</p>}
+        {waiting ? <p className="portal-note">An assessment is waiting.</p> : null}
       </header>
       {ownSessions.length > 0 ? (
         <section className="briefing-session">
@@ -147,6 +146,9 @@ async function FrameworkLevels({
     const role = framework.roles.find((item) => item.id === requirement.roleId);
     return role !== undefined && roleTitles.has(role.name);
   });
+  if (requirements.length === 0) {
+    return null;
+  }
   const rows = await Promise.all(
     requirements.map(async (requirement) => {
       const capability = framework.capabilities.find((item) => item.id === requirement.capabilityId);
@@ -166,7 +168,10 @@ async function FrameworkLevels({
   const ordered = [...rows].sort((left, right) => Number(right.explanation !== null) - Number(left.explanation !== null));
 
   return (
-    <>
+    <section className="capability-framework">
+      <h2>
+        {framework.frameworkName} v{framework.versionNumber}
+      </h2>
       {ordered.map(({ requirement, capability, explanation, pathway }) => (
         <div key={requirement.id} className="primary-capability">
           {explanation ? (
@@ -177,6 +182,6 @@ async function FrameworkLevels({
           {pathway ? <PathwayView pathway={pathway} /> : null}
         </div>
       ))}
-    </>
+    </section>
   );
 }

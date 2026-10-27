@@ -24,22 +24,11 @@ export function TeamRow({
   roles: string[];
   capabilities: TeamCapability[];
 }) {
-  const strengths = capabilities.filter(isBand("strength"));
-  const developing = capabilities.filter(isBand("developing"));
-  const priority = capabilities.filter(isBand("priority"));
-
   return (
     <a className="team-row" href={`/manager/people/${personId}`}>
-      <span className="team-identity">
-        <span className="team-name">{personName}</span>
-        <span className="team-role">{roles.join(", ") || "No role recorded"}</span>
-        <span className="team-summary">{belowLabel(developing.length + priority.length)}</span>
-      </span>
-      <span className="team-bands">
-        <Band label="Strengths" tone="band-strength" items={strengths} />
-        <Band label="Developing areas" items={developing} />
-        <Band label="Priority gaps" tone="band-priority" items={priority} />
-      </span>
+      <span className="team-name">{personName}</span>
+      <span className="status-pill">{roles.join(", ") || "No role recorded"}</span>
+      <span className="team-summary">{teamSummary(capabilities)}</span>
     </a>
   );
 }
@@ -58,53 +47,79 @@ export function PersonRecord({
   const strengths = capabilities.filter(isBand("strength"));
   const developing = capabilities.filter(isBand("developing"));
   const priority = capabilities.filter(isBand("priority"));
+  const unassessed = capabilities.filter((capability) => capability.explanation === null);
+  const roleLine = roles.join(", ");
 
   return (
     <>
-      <p className="team-kicker">{roles.join(", ")}</p>
       <h2>{personName}</h2>
-      <section className="team-group">
-        <h3 className="band-strength">Strengths</h3>
-        <FigureList items={strengths} />
-      </section>
-      <section className="team-group">
-        <h3>Developing areas</h3>
-        <FigureList items={developing} />
-      </section>
-      <section className="team-group">
-        <h3 className="band-priority">Priority gaps</h3>
-        {priority.length === 0 ? <p className="team-empty">None</p> : null}
-        {priority.map((capability) => (
-          <article key={capability.capabilityCode} className="capability-figures">
-            <LevelFigures capability={capability} />
-            <form className="framework-form" action={saveManagerAssessment}>
-              <input type="hidden" name="personId" value={personId} />
-              <input type="hidden" name="frameworkVersionId" value={capability.frameworkVersionId} />
-              <input type="hidden" name="capabilityCode" value={capability.capabilityCode} />
-              <input type="hidden" name="requiredLevel" value={capability.requiredLevel} />
-              <label>
-                Manager assessment for {capability.name}
-                <input name="percentage" type="number" min={0} max={100} required defaultValue="" />
-              </label>
-              <label>
-                Evidence
-                <input name="evidence" type="text" required />
-              </label>
-              <button className="primary" type="submit">Save manager assessment</button>
-            </form>
-          </article>
-        ))}
-      </section>
+      {roleLine ? <p className="status-pill">{roleLine}</p> : <p>No role recorded</p>}
+      {strengths.length > 0 ? (
+        <section className="team-group">
+          <h3 className="band-strength">Strengths</h3>
+          <FigureList items={strengths} />
+        </section>
+      ) : null}
+      {developing.length > 0 ? (
+        <section className="team-group">
+          <h3>Developing areas</h3>
+          <FigureList items={developing} />
+        </section>
+      ) : null}
+      {priority.length > 0 ? (
+        <section className="team-group">
+          <h3 className="band-priority">Priority gaps</h3>
+          {priority.map((capability) => (
+            <article key={`${capability.frameworkVersionId}-${capability.capabilityCode}`} className="capability-figures">
+              <LevelFigures capability={capability} />
+              <AssessmentForm personId={personId} capability={capability} />
+            </article>
+          ))}
+        </section>
+      ) : null}
+      {unassessed.length > 0 ? (
+        <section className="team-group">
+          <h3>Not yet assessed</h3>
+          {unassessed.map((capability) => (
+            <article key={`${capability.frameworkVersionId}-${capability.capabilityCode}`} className="capability-figures">
+              <h3>{capability.name}</h3>
+              <p>Required level {capability.requiredLevel}</p>
+              <p className="portal-note">Not yet assessed</p>
+              <AssessmentForm personId={personId} capability={capability} />
+            </article>
+          ))}
+        </section>
+      ) : null}
+      {capabilities.length === 0 ? <p className="portal-note">Not yet assessed</p> : null}
     </>
   );
 }
 
+function AssessmentForm({ personId, capability }: { personId: string; capability: TeamCapability }) {
+  return (
+    <form className="framework-form" action={saveManagerAssessment}>
+      <input type="hidden" name="personId" value={personId} />
+      <input type="hidden" name="frameworkVersionId" value={capability.frameworkVersionId} />
+      <input type="hidden" name="capabilityCode" value={capability.capabilityCode} />
+      <input type="hidden" name="requiredLevel" value={capability.requiredLevel} />
+      <label>
+        Manager assessment for {capability.name}
+        <input name="percentage" type="number" min={0} max={100} required defaultValue="" />
+      </label>
+      <label>
+        Evidence
+        <input name="evidence" type="text" required />
+      </label>
+      <button className="primary" type="submit">
+        Save manager assessment
+      </button>
+    </form>
+  );
+}
+
 function FigureList({ items }: { items: AssessedCapability[] }) {
-  if (items.length === 0) {
-    return <p className="team-empty">None</p>;
-  }
   return items.map((capability) => (
-    <article key={capability.capabilityCode} className="capability-figures">
+    <article key={`${capability.frameworkVersionId}-${capability.capabilityCode}`} className="capability-figures">
       <LevelFigures capability={capability} />
     </article>
   ));
@@ -134,21 +149,17 @@ function LevelFigures({ capability }: { capability: AssessedCapability }) {
   );
 }
 
-function Band({
-  label,
-  tone,
-  items,
-}: {
-  label: string;
-  tone?: string;
-  items: AssessedCapability[];
-}) {
-  return (
-    <span className="team-band">
-      <span className={tone ? `team-band-label ${tone}` : "team-band-label"}>{label}</span>
-      <span className="team-band-names">{items.length === 0 ? "None" : items.map((item) => item.name).join(", ")}</span>
-    </span>
-  );
+function teamSummary(capabilities: TeamCapability[]): string {
+  const assessed = capabilities.some((capability) => capability.explanation !== null);
+  if (!assessed) {
+    return "Not yet assessed";
+  }
+  const below = capabilities.filter((capability) => isBand("developing")(capability) || isBand("priority")(capability));
+  if (below.length === 0) {
+    return "No capabilities below the required level";
+  }
+  const count = below.length === 1 ? "1 capability below the required level" : `${below.length} capabilities below the required level`;
+  return `${count}: ${below.map((capability) => capability.name).join(", ")}`;
 }
 
 function isBand(band: "strength" | "developing" | "priority") {
@@ -164,16 +175,6 @@ function gapTone(gap: string): string {
     return "tone-gap";
   }
   return "";
-}
-
-function belowLabel(count: number): string {
-  if (count === 0) {
-    return "No capabilities below the required level";
-  }
-  if (count === 1) {
-    return "1 capability below the required level";
-  }
-  return `${count} capabilities below the required level`;
 }
 
 function gapBand(gap: string): "strength" | "developing" | "priority" {

@@ -28,7 +28,7 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const heading = pageTitle(area, pathname);
+  const heading = pageHeading(area, pathname);
 
   return (
     <div className="app">
@@ -52,8 +52,12 @@ export function PortalShell({
         </div>
       </nav>
       <main className="main">
-        <p className="kicker">{heading.kicker}</p>
-        <h1>{heading.title}</h1>
+        {heading ? (
+          <>
+            <p className="kicker">{heading.kicker}</p>
+            <h1>{heading.title}</h1>
+          </>
+        ) : null}
         {children}
       </main>
     </div>
@@ -68,6 +72,13 @@ function currentLink(pathname: string, href: string): boolean {
     return pathname.startsWith("/admin/role-profiles") && !pathname.startsWith("/admin/role-profiles/review");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function pageHeading(area: Area, pathname: string): { kicker: string; title: string } | null {
+  if (area === "employee" || pathname.startsWith("/manager/people/")) {
+    return null;
+  }
+  return pageTitle(area, pathname);
 }
 
 function pageTitle(area: Area, pathname: string): { kicker: string; title: string } {

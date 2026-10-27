@@ -12,23 +12,33 @@ const sources: Array<{
 ];
 
 export function EvidenceRow({ explanation }: { explanation: Explanation | null }) {
+  if (!explanation) {
+    return null;
+  }
+  const scored = sources.flatMap((source) => {
+    const percentage = source.read(explanation);
+    return percentage === null ? [] : [{ label: source.label, percentage }];
+  });
+  const missing = sources.filter((source) => source.read(explanation) === null).map((source) => source.label);
+
   return (
-    <div className="measures">
-      {sources.map((source) => {
-        const percentage = explanation ? source.read(explanation) : null;
-        const missing = percentage === null;
-        return (
-          <div key={source.label} className="measure">
-            <span className="measure-label">{source.label}</span>
-            <span className="measure-track" aria-hidden="true">
-              {missing ? null : <span className="measure-fill" style={{ width: `${percentage}%` }} />}
-            </span>
-            <input readOnly aria-label={source.label} value={missing ? "" : String(percentage)} />
-            <span className={missing ? "measure-reading measure-missing" : "measure-reading"}>{missing ? "Not yet assessed" : percentage}</span>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      {scored.length > 0 ? (
+        <div className="measures">
+          {scored.map((source) => (
+            <div key={source.label} className="measure">
+              <span className="measure-label">{source.label}</span>
+              <span className="measure-track" aria-hidden="true">
+                <span className="measure-fill" style={{ width: `${source.percentage}%` }} />
+              </span>
+              <input readOnly aria-label={source.label} value={String(source.percentage)} />
+              <span className="measure-reading">{source.percentage}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {missing.length > 0 ? <p className="portal-note">Still to assess: {missing.join(", ")}</p> : null}
+    </>
   );
 }
 
@@ -76,13 +86,8 @@ export function RequiredOnly({ name, requiredLevel }: { name: string; requiredLe
   return (
     <article className="instrument instrument-quiet">
       <h3>{name}</h3>
-      <dl className="figures figures-single">
-        <div>
-          <dt>Required</dt>
-          <dd>{requiredLevel}</dd>
-        </div>
-      </dl>
-      <EvidenceRow explanation={null} />
+      <p>Required level {requiredLevel}</p>
+      <p className="portal-note">Not yet assessed</p>
     </article>
   );
 }

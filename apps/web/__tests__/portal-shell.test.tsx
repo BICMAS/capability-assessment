@@ -1,8 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const pathname = vi.hoisted(() => ({ current: "/admin" }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin",
+  usePathname: () => pathname.current,
 }));
 
 import { PortalShell } from "@/components/portal-shell";
@@ -16,6 +18,7 @@ const session = {
 };
 
 afterEach(() => {
+  pathname.current = "/admin";
   cleanup();
 });
 
@@ -42,8 +45,21 @@ describe("portal shell", () => {
       </PortalShell>,
     );
 
-    expect(screen.getByRole("heading", { name: "My capability" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My capability" })).toBeNull();
     expect(screen.getByRole("link", { name: "My capability" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Review" })).toBeNull();
+  });
+
+  it("lets a person's name be the heading on their record", () => {
+    pathname.current = "/manager/people/eli";
+    render(
+      <PortalShell area="manager" session={{ ...session, name: "Maya", roles: ["manager"] }}>
+        <h2>Eli Employee</h2>
+      </PortalShell>,
+    );
+
+    expect(screen.queryByRole("heading", { name: "My team" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Eli Employee" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "My team" })).toBeTruthy();
   });
 });
