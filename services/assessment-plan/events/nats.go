@@ -11,14 +11,16 @@ import (
 )
 
 const (
-	StreamName            = "LEARN_EVENTS"
-	PersonSignedInSubject = "person.signed_in"
-	AssignmentSubject     = "assignment.changed"
-	FrameworkSubject      = "framework.published"
-	LevelSubject          = "level.overridden"
-	LearningSubject       = "learning.completed"
-	AssessmentSubject     = "assessment.assigned"
-	PlanApprovedSubject   = "assessment.plan_approved"
+	StreamName              = "LEARN_EVENTS"
+	PersonSignedInSubject   = "person.signed_in"
+	AssignmentSubject       = "assignment.changed"
+	FrameworkSubject        = "framework.published"
+	LevelSubject            = "level.overridden"
+	LearningSubject         = "learning.completed"
+	AssessmentSubject       = "assessment.assigned"
+	PlanApprovedSubject     = "assessment.plan_approved"
+	CompletedSubject        = "assessment.completed"
+	ProfilePublishedSubject = "role_profile.published"
 )
 
 type Publisher struct {
@@ -46,6 +48,8 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 			LearningSubject,
 			AssessmentSubject,
 			PlanApprovedSubject,
+			CompletedSubject,
+			ProfilePublishedSubject,
 		},
 	}); err != nil {
 		conn.Close()
@@ -90,6 +94,24 @@ func (p *Publisher) PublishPlanApproved(ctx context.Context, event plan.PlanAppr
 	return err
 }
 
+func (p *Publisher) PublishAssessmentCompleted(ctx context.Context, event plan.AssessmentCompleted) error {
+	payload, err := json.Marshal(completedAssessmentEvent{
+		Type:             event.Type,
+		OrganisationID:   event.OrganisationID,
+		PersonID:         event.PersonID,
+		SessionID:        event.SessionID,
+		PlanID:           event.PlanID,
+		ActorPersonID:    event.ActorPersonID,
+		ProfileVersionID: event.ProfileVersionID,
+		OccurredAt:       event.OccurredAt,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.stream.Publish(ctx, CompletedSubject, payload)
+	return err
+}
+
 func (p *Publisher) Close() {
 	if p == nil || p.conn == nil {
 		return
@@ -106,6 +128,17 @@ type assignedEvent struct {
 	FrameworkVersionID string `json:"frameworkVersionId"`
 	RoleID             string `json:"roleId"`
 	OccurredAt         string `json:"occurredAt"`
+}
+
+type completedAssessmentEvent struct {
+	Type             string `json:"type"`
+	OrganisationID   string `json:"organisationId"`
+	PersonID         string `json:"personId"`
+	SessionID        string `json:"sessionId"`
+	PlanID           string `json:"planId"`
+	ActorPersonID    string `json:"actorPersonId"`
+	ProfileVersionID string `json:"profileVersionId,omitempty"`
+	OccurredAt       string `json:"occurredAt"`
 }
 
 type approvedEvent struct {

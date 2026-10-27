@@ -555,7 +555,7 @@ func (q *Queries) MaxVersionNumber(ctx context.Context, arg MaxVersionNumberPara
 	return version_number, err
 }
 
-const publishVersion = `-- name: PublishVersion :exec
+const publishVersion = `-- name: PublishVersion :execrows
 UPDATE framework_versions
 SET status = 'published'
 WHERE id = $1
@@ -568,9 +568,12 @@ type PublishVersionParams struct {
 	OrganisationID string
 }
 
-func (q *Queries) PublishVersion(ctx context.Context, arg PublishVersionParams) error {
-	_, err := q.db.ExecContext(ctx, publishVersion, arg.ID, arg.OrganisationID)
-	return err
+func (q *Queries) PublishVersion(ctx context.Context, arg PublishVersionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, publishVersion, arg.ID, arg.OrganisationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const renameRole = `-- name: RenameRole :exec

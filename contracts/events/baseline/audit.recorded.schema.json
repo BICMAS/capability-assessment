@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:audit.recorded",
+  "title": "audit.recorded",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "actorPersonId", "organisationId", "action", "entityType", "entityId", "occurredAt"],
+  "properties": {
+    "type": { "const": "audit.recorded" },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "minLength": 1 },
+    "entityType": { "type": "string", "minLength": 1 },
+    "entityId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

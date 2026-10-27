@@ -21,6 +21,7 @@ type Memory struct {
 	versions      map[string]int
 	sessions      map[string]Session
 	sessionByPlan map[string]string
+	baselines     map[string]ProfileBaseline
 }
 
 func NewMemory() *Memory {
@@ -31,6 +32,7 @@ func NewMemory() *Memory {
 		versions:      map[string]int{},
 		sessions:      map[string]Session{},
 		sessionByPlan: map[string]string{},
+		baselines:     map[string]ProfileBaseline{},
 	}
 }
 
@@ -431,6 +433,75 @@ func trimSkillEdit(input EditSkillInput) EditSkillInput {
 		input.Rubric[i].Descriptor = strings.TrimSpace(band.Descriptor)
 	}
 	return input
+}
+
+func (m *Memory) SaveProfileBaseline(_ context.Context, baseline ProfileBaseline) (ProfileBaseline, error) {
+	if !present(baseline.OrganisationID) || !present(baseline.PlanID) || !present(baseline.ProfileVersionID) {
+		return ProfileBaseline{}, ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.baselines[baseline.PlanID]; ok {
+		if existing.OrganisationID != baseline.OrganisationID {
+			return ProfileBaseline{}, ErrNotFound
+		}
+		return copyBaseline(existing), nil
+	}
+	id, err := newID()
+	if err != nil {
+		return ProfileBaseline{}, err
+	}
+	baseline.ID = id
+	baseline.Skills = copySkillSnapshots(baseline.Skills)
+	m.baselines[baseline.PlanID] = baseline
+	return copyBaseline(baseline), nil
+}
+
+func (m *Memory) ProfileBaseline(_ context.Context, organisationID, planID string) (ProfileBaseline, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	baseline, ok := m.baselines[planID]
+	if !ok || baseline.OrganisationID != organisationID {
+		return ProfileBaseline{}, ErrNotFound
+	}
+	return copyBaseline(baseline), nil
+}
+
+func (m *Memory) LatestPlan(_ context.Context, organisationID, assignmentID string) (Plan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var found Plan
+	seen := false
+	for _, row := range m.plans {
+		if row.OrganisationID == organisationID && row.AssignmentID == assignmentID && (!seen || row.VersionNumber > found.VersionNumber) {
+			found = row
+			seen = true
+		}
+	}
+	if !seen {
+		return Plan{}, ErrNotFound
+	}
+	return copyPlan(found), nil
+}
+
+func (m *Memory) ListProfileBaselines(_ context.Context, organisationID string) ([]ProfileBaseline, error) {
+	if !present(organisationID) {
+		return nil, ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rows := make([]ProfileBaseline, 0)
+	for _, baseline := range m.baselines {
+		if baseline.OrganisationID == organisationID {
+			rows = append(rows, copyBaseline(baseline))
+		}
+	}
+	return rows, nil
+}
+
+func copyBaseline(baseline ProfileBaseline) ProfileBaseline {
+	baseline.Skills = copySkillSnapshots(baseline.Skills)
+	return baseline
 }
 
 func copyPlan(row Plan) Plan {

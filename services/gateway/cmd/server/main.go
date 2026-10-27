@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/bicmas-academy/learn/services/gateway/auth"
+	"github.com/bicmas-academy/learn/services/gateway/config"
 	"github.com/bicmas-academy/learn/services/gateway/events"
 	"github.com/bicmas-academy/learn/services/gateway/health"
 	"github.com/bicmas-academy/learn/services/gateway/server"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 func main() {
@@ -23,11 +23,11 @@ func main() {
 }
 
 func run(logger *slog.Logger) error {
-	secret := os.Getenv("DEV_JWT_SECRET")
-	if secret == "" {
-		return errors.New("DEV_JWT_SECRET is required")
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
-	dev, err := auth.NewDevHMAC([]byte(secret), 12*time.Hour)
+	materials, err := auth.NewMaterials(cfg)
 	if err != nil {
 		return err
 	}
@@ -40,15 +40,26 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer publisher.Close()
-	httpServer := &http.Server{
-		Addr:    listenAddr(),
-		Handler: server.NewRouter(dev, dev, publisher),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", httpServer.Addr)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(server.NewRouter(server.Options{
+		Verifier:  materials.Verifier,
+		Publisher: publisher,
+		DevLogin:  materials.Issuer,
+		Ready: func(context.Context) error {
+			return publisher.Ready()
+		},
+	}), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	httpServer := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured",
+		"service", health.ServiceName,
+		"addr", httpServer.Addr,
+		"app_env", cfg.AppEnv,
+		"dev_login_enabled", cfg.DevLoginEnabled,
+		"read_header_timeout", timeouts.ReadHeaderTimeout.String(),
+		"write_timeout", timeouts.WriteTimeout.String(),
+	)
+	return httpserver.ListenAndServe(httpServer, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func listenAddr() string {

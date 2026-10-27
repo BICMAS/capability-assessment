@@ -45,13 +45,13 @@ func TestPublishFreezesSalesFrameworkAndRecordsAda(t *testing.T) {
 	if approved.Code != http.StatusOK {
 		t.Fatalf("approve = %d body = %s", approved.Code, approved.Body.String())
 	}
-	publisher := &recordingPublisher{}
-	published := callVersion(t, Publish(store, publisher), http.MethodPost, claims, version.ID, "")
+	published := callVersion(t, Publish(store), http.MethodPost, claims, version.ID, "")
 	if published.Code != http.StatusOK {
 		t.Fatalf("publish = %d body = %s", published.Code, published.Body.String())
 	}
-	if len(publisher.events) != 1 || publisher.events[0].ActorPersonID != claims.PersonID || publisher.events[0].Type != "framework.published" || publisher.events[0].FrameworkVersionID != version.ID {
-		t.Fatalf("event = %#v", publisher.events)
+	recorded := store.Outbox()
+	if len(recorded) != 1 || recorded[0].EventType != "framework.published" || recorded[0].AggregateID != version.ID || recorded[0].SchemaVersion != PublicationSchemaVersion {
+		t.Fatalf("outbox = %#v", recorded)
 	}
 
 	second := callIndicator(t, UpdateIndicator(store), claims, version.ID, indicatorID, `{"statement":"A later edit."}`)
@@ -155,11 +155,3 @@ func callIndicator(t *testing.T, handler http.Handler, claims token.Claims, vers
 	return response
 }
 
-type recordingPublisher struct {
-	events []FrameworkPublished
-}
-
-func (r *recordingPublisher) PublishFrameworkPublished(_ context.Context, event FrameworkPublished) error {
-	r.events = append(r.events, event)
-	return nil
-}

@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	nats "github.com/nats-io/nats.go"
 	js "github.com/nats-io/nats.go/jetstream"
@@ -38,7 +39,7 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
 		Name:     StreamName,
-		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
+		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject, "assessment.completed", "role_profile.published"},
 	}); err != nil {
 		conn.Close()
 		return nil, err
@@ -60,4 +61,11 @@ func (p *Publisher) Close() {
 		return
 	}
 	p.conn.Close()
+}
+
+func (p *Publisher) Ready() error {
+	if p == nil || p.conn == nil || !p.conn.IsConnected() {
+		return errors.New("nats unavailable")
+	}
+	return nil
 }

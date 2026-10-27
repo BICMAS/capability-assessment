@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"github.com/bicmas-academy/learn/services/httpserver"
 	"github.com/bicmas-academy/learn/services/org-directory/db"
 	"github.com/bicmas-academy/learn/services/org-directory/directory"
 	"github.com/bicmas-academy/learn/services/org-directory/events"
@@ -77,17 +77,13 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("publish assignments: %w", err)
 	}
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: directory.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, database, databaseName)
-		}, []byte(secret), store, publisher),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(directory.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, database, databaseName)
+	}, []byte(secret), store, publisher), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

@@ -110,7 +110,7 @@ func TestGenerateFromElisNegotiationAssignment(t *testing.T) {
 		{RequirementID: commercialReq, RecommendedMethod: MethodCaseStudy, Instructions: "Use a written commercial case.", AssessmentItems: []string{modelText[commercialReq]}, Rubric: []modelBand{{Level: 1, Descriptor: "Explains the margin."}}},
 		{RequirementID: executionReq, RecommendedMethod: MethodCaseStudy, Instructions: "Use a written execution case.", AssessmentItems: []string{modelText[executionReq]}, Rubric: []modelBand{{Level: 0, Descriptor: "Sequences the work."}}},
 	})}
-	router := NewRouter(nil, []byte(httpSecret), store, HTTPFramework{BaseURL: framework.URL, Client: framework.Client()}, nil, nil, drafter, nil, nil)
+	router := NewRouter(nil, []byte(httpSecret), store, HTTPFramework{BaseURL: framework.URL, Client: framework.Client()}, nil, nil, drafter, nil, nil, ProfileBridge{})
 	token := sign(t, adaClaims())
 	first := postGenerate(t, router, token, assignment.ID, http.StatusCreated)
 	var plan openapi.Plan
@@ -289,7 +289,7 @@ func negotiationRouter(t *testing.T, drafter Drafter) (*Memory, http.Handler) {
 	}))
 	t.Cleanup(framework.Close)
 	store := NewMemory()
-	router := NewRouter(nil, []byte(httpSecret), store, HTTPFramework{BaseURL: framework.URL, Client: framework.Client()}, nil, nil, drafter, nil, nil)
+	router := NewRouter(nil, []byte(httpSecret), store, HTTPFramework{BaseURL: framework.URL, Client: framework.Client()}, nil, nil, drafter, nil, nil, ProfileBridge{})
 	return store, router
 }
 
@@ -312,6 +312,8 @@ func modelDraftJSON(t *testing.T, skills []modelSkill) []byte {
 	return raw
 }
 
+// scriptDrafter is the deterministic fake AI provider used by unit tests.
+// It never calls a paid model endpoint.
 type scriptDrafter struct {
 	body    []byte
 	request []byte

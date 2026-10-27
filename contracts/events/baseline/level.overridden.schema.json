@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:level.overridden",
+  "title": "level.overridden",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "overrideId", "actorPersonId", "occurredAt"],
+  "properties": {
+    "type": { "const": "level.overridden" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "overrideId": { "type": "string", "minLength": 1 },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

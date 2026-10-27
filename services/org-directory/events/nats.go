@@ -38,7 +38,7 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
 		Name:     StreamName,
-		Subjects: []string{PersonSignedInSubject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
+		Subjects: []string{PersonSignedInSubject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject, "assessment.completed", "role_profile.published"},
 	}); err != nil {
 		conn.Close()
 		return nil, err

@@ -1,0 +1,7 @@
+./apply.go
+./compare.go
+./parents.go
+./parse.go
+./schema.go
+./utils.go
+./validate.go

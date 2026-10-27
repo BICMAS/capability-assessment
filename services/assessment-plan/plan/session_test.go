@@ -37,7 +37,7 @@ func TestEliSubmitsTheApprovedNegotiationSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, scriptMatcher{level: 4}, nil)
+	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, scriptMatcher{level: 4}, nil, ProfileBridge{})
 	ada := sign(t, adaClaims())
 	eli := sign(t, eliClaims())
 	maya := sign(t, mayaClaims())
@@ -129,7 +129,7 @@ func TestABandOutsideTheRubricDoesNotStoreAProposal(t *testing.T) {
 	created := approveNegotiation(t, store, assignment.ID)
 	handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, scriptMatcher{
 		raw: `{"skills":[{"requirementId":"` + requirementID + `","levels":[1],"descriptor":"invented"}]}`,
-	}, nil)
+	}, nil, ProfileBridge{})
 	eli := sign(t, eliClaims())
 	session := startEli(t, handler, eli, created.ID)
 	call(t, handler, http.MethodPost, "/assessment-sessions/"+session.ID+"/submission", eli, "", http.StatusBadRequest)
@@ -155,7 +155,7 @@ func TestMayaOrAdaConfirmsTheProposalIntoAssessmentGap(t *testing.T) {
 			inner.ServeHTTP(w, r)
 		}))
 		t.Cleanup(gap.Close)
-		handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, scriptMatcher{level: 4}, HTTPGap{BaseURL: gap.URL, Client: gap.Client()})
+		handler := NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, scriptMatcher{level: 4}, HTTPGap{BaseURL: gap.URL, Client: gap.Client()}, ProfileBridge{})
 		eli := sign(t, eliClaims())
 		session := startEli(t, handler, eli, created.ID)
 		call(t, handler, http.MethodPost, "/assessment-sessions/"+session.ID+"/submission", eli, "", http.StatusOK)

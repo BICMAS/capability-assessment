@@ -3,6 +3,58 @@ info:
   title: assessment-plan
   version: 0.1.0
 paths:
+  /profile-assessment-plans:
+    post:
+      operationId: createProfileAssessmentPlan
+      description: Creates a generated assessment plan from one published role-profile version. The version is snapshotted. Later profile edits do not change the plan. Required skills become requirements on the 0-4 proficiency scale. The existing review workflow still applies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [profileId, profileVersionId, personId]
+              properties:
+                profileId:
+                  type: string
+                profileVersionId:
+                  type: string
+                personId:
+                  type: string
+                assignedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Plan created from the published profile version
+        "403":
+          description: Caller is not an admin
+        "409":
+          description: Profile is not published, or the role assignment does not cover the assessment time
+  /profile-insights:
+    get:
+      operationId: readProfileInsights
+      description: Authorised employee, manager, or department insight for one snapshotted role-profile version. Missing assessments are not reported as proficiency zero. The result is not an employment decision.
+      parameters:
+        - name: profileVersionId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: personId
+          in: query
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Insight for the requested profile version and the visible population
+        "403":
+          description: Caller cannot view this population
   /health:
     get:
       operationId: health

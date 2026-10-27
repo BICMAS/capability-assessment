@@ -138,6 +138,39 @@ func AddRequirement(store Store) http.HandlerFunc {
 	}
 }
 
+func AddRoleCapability(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireAdmin(w, r)
+		if !ok {
+			return
+		}
+		var body openapi.CreateRoleCapability
+		if !decode(w, r, &body) {
+			return
+		}
+		if body.Name == "" || body.RoleId == "" {
+			writeError(w, http.StatusBadRequest)
+			return
+		}
+		capability, requirement, err := store.AddRoleCapability(
+			r.Context(),
+			claims.OrganisationID,
+			chi.URLParam(r, "versionId"),
+			body.RoleId,
+			body.Name,
+			body.RequiredLevel,
+		)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, openapi.RoleCapability{
+			Capability:  capabilityJSON(capability),
+			Requirement: requirementJSON(requirement),
+		})
+	}
+}
+
 func AddIndicator(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := requireAdmin(w, r)
@@ -180,25 +213,22 @@ func PatchRole(store Store) http.HandlerFunc {
 	}
 }
 
-func Publish(store Store, publisher Publisher) http.HandlerFunc {
+func Publish(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := requireAdmin(w, r)
 		if !ok {
 			return
 		}
-		version, err := store.Publish(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"))
+		versionID := chi.URLParam(r, "versionId")
+		occurredAt := time.Now().UTC().Truncate(time.Second)
+		event, err := newPublicationEvent(claims.OrganisationID, versionID, claims.PersonID, correlationID(r), occurredAt)
 		if err != nil {
-			writeStoreError(w, err)
+			writeError(w, http.StatusInternalServerError)
 			return
 		}
-		if err := publisher.PublishFrameworkPublished(r.Context(), FrameworkPublished{
-			Type:               "framework.published",
-			OrganisationID:     version.OrganisationID,
-			FrameworkVersionID: version.ID,
-			ActorPersonID:      claims.PersonID,
-			OccurredAt:         time.Now().UTC().Format(time.RFC3339),
-		}); err != nil {
-			writeError(w, http.StatusInternalServerError)
+		version, err := store.PublishWithEvent(r.Context(), claims.OrganisationID, versionID, event)
+		if err != nil {
+			writeStoreError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, versionJSON(version))

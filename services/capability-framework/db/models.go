@@ -6,6 +6,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
@@ -14,6 +15,15 @@ type BehaviouralIndicator struct {
 	OrganisationID     string
 	ProficiencyLevelID string
 	Statement          string
+}
+
+type CanonicalSkill struct {
+	ID             string
+	OrganisationID string
+	Name           string
+	Category       string
+	Definition     string
+	CreatedAt      time.Time
 }
 
 type Capability struct {
@@ -80,11 +90,34 @@ type ImportRowError struct {
 	Message            string
 }
 
+type OutboxEvent struct {
+	ID            string
+	EventType     string
+	SchemaVersion int32
+	AggregateID   string
+	OccurredAt    time.Time
+	CorrelationID string
+	Payload       json.RawMessage
+	Status        string
+	Attempts      int32
+	NextAttemptAt time.Time
+	LastError     string
+	PublishedAt   sql.NullTime
+	CreatedAt     time.Time
+}
+
 type ProficiencyLevel struct {
 	ID             string
 	OrganisationID string
 	CapabilityID   string
 	Level          int32
+}
+
+type ProfileRole struct {
+	ID             string
+	OrganisationID string
+	Name           string
+	CreatedAt      time.Time
 }
 
 type ReviewProposal struct {
@@ -112,4 +145,130 @@ type RoleCapabilityRequirement struct {
 	RoleID             string
 	CapabilityID       string
 	RequiredLevel      int32
+}
+
+type RoleProfile struct {
+	ID                string
+	OrganisationID    string
+	RoleID            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+type RoleProfileAudit struct {
+	ID               string
+	OrganisationID   string
+	RoleProfileID    string
+	ProfileVersionID string
+	ActorPersonID    string
+	Action           string
+	OccurredAt       time.Time
+}
+
+type RoleProfileComment struct {
+	ID               string
+	OrganisationID   string
+	ProfileVersionID string
+	AuthorPersonID   string
+	Body             string
+	CreatedAt        time.Time
+}
+
+type RoleProfileContext struct {
+	ID                string
+	OrganisationID    string
+	ProfileVersionID  string
+	VersionNumber     int32
+	ContentHash       string
+	Snapshot          string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+type RoleProfileGenerationJob struct {
+	ID                string
+	OrganisationID    string
+	ProfileVersionID  string
+	ContextVersion    int32
+	ContextHash       string
+	IdempotencyKey    string
+	Status            string
+	ModelID           string
+	PromptVersion     string
+	InputHash         string
+	OutputHash        string
+	LatencyMs         int32
+	PromptTokens      int32
+	CompletionTokens  int32
+	Attempts          int32
+	LastError         string
+	Unsupported       string
+	Uncertainty       string
+	Result            string
+	CancelRequested   bool
+	CreatedByPersonID string
+	CreatedAt         time.Time
+	StartedAt         sql.NullTime
+	FinishedAt        sql.NullTime
+}
+
+type RoleProfileQuestion struct {
+	ID               string
+	OrganisationID   string
+	ProfileVersionID string
+	ContextVersion   int32
+	Round            int32
+	Field            string
+	Question         string
+	Critical         bool
+	Answer           string
+	AskedActorID     string
+	AnsweredActorID  string
+	AskedAt          time.Time
+	AnsweredAt       sql.NullTime
+}
+
+type RoleProfileSkill struct {
+	ID                  string
+	OrganisationID      string
+	ProfileVersionID    string
+	SkillID             string
+	Category            string
+	Definition          string
+	RequiredProficiency int32
+	Priority            string
+	Rationale           string
+	Provenance          string
+	Position            int32
+}
+
+type RoleProfileSource struct {
+	ID               string
+	OrganisationID   string
+	ProfileVersionID string
+	Title            string
+	ReferenceUri     string
+}
+
+type RoleProfileVersion struct {
+	ID                     string
+	OrganisationID         string
+	RoleProfileID          string
+	VersionNumber          int32
+	Revision               int32
+	Status                 string
+	Purpose                string
+	Responsibilities       string
+	BusinessOutcomes       string
+	DecisionScope          string
+	Industry               string
+	Region                 string
+	TeamSize               sql.NullInt32
+	ReportingLevel         string
+	FrameworkVersionID     sql.NullString
+	AiDraft                string
+	AiModel                string
+	AiSourceContextVersion string
+	AiGeneratedAt          sql.NullTime
+	CreatedAt              time.Time
 }

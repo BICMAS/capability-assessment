@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:framework.published",
+  "title": "framework.published",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "frameworkVersionId", "actorPersonId", "occurredAt"],
+  "properties": {
+    "type": { "const": "framework.published" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "frameworkVersionId": { "type": "string", "minLength": 1 },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"github.com/bicmas-academy/learn/services/httpserver"
 	"github.com/bicmas-academy/learn/services/notify/db"
 	"github.com/bicmas-academy/learn/services/notify/health"
 	"github.com/bicmas-academy/learn/services/notify/inbox"
@@ -63,17 +63,13 @@ func run(logger *slog.Logger) error {
 		return errors.New("DEV_JWT_SECRET is required")
 	}
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: inbox.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, database, databaseName)
-		}, []byte(secret), inbox.NewSQLStore(db.New(database))),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(inbox.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, database, databaseName)
+	}, []byte(secret), inbox.NewSQLStore(db.New(database))), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

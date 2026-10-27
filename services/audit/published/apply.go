@@ -29,6 +29,8 @@ func Apply(ctx context.Context, store records.Store, payload []byte) error {
 	if err != nil {
 		return fmt.Errorf("parse occurredAt: %w", err)
 	}
+	// Redelivery is safe: the audit primary key includes actor, organisation, action,
+	// entity and occurredAt, and SQL inserts use ON CONFLICT DO NOTHING.
 	return store.Append(ctx, records.Record{
 		ActorPersonID:  event.ActorPersonID,
 		OrganisationID: event.OrganisationID,

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/bicmas-academy/learn/services/development/health"
 	"github.com/bicmas-academy/learn/services/development/migrations"
 	"github.com/bicmas-academy/learn/services/development/pathway"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 const (
@@ -81,17 +81,13 @@ func run(logger *slog.Logger) error {
 	defer publisher.Close()
 	store := pathway.NewSQLStore(db, lmsBase)
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: pathway.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, db, databaseName)
-		}, []byte(secret), []byte(webhookSecret), store, publisher),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(pathway.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, db, databaseName)
+	}, []byte(secret), []byte(webhookSecret), store, publisher), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

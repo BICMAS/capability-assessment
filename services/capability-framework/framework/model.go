@@ -3,6 +3,7 @@ package framework
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/bicmas-academy/learn/services/capability-framework/csvimport"
 )
@@ -99,9 +100,12 @@ type Store interface {
 	AddRole(ctx context.Context, organisationID, versionID, name string) (Role, error)
 	AddCapability(ctx context.Context, organisationID, versionID, name string) (Capability, error)
 	AddRequirement(ctx context.Context, organisationID, versionID, roleID, capabilityID string, requiredLevel int) (Requirement, error)
+	// AddRoleCapability creates a capability and its role requirement in one operation.
+	AddRoleCapability(ctx context.Context, organisationID, versionID, roleID, name string, requiredLevel int) (Capability, Requirement, error)
 	AddIndicator(ctx context.Context, organisationID, versionID, capabilityID string, level int, statement string) (Indicator, error)
 	PatchRole(ctx context.Context, organisationID, versionID, roleID, name string) (Version, error)
 	Publish(ctx context.Context, organisationID, versionID string) (Version, error)
+	PublishWithEvent(ctx context.Context, organisationID, versionID string, event OutboxEvent) (Version, error)
 	CreateNextDraft(ctx context.Context, organisationID, versionID string) (Version, error)
 	ApplyImport(ctx context.Context, organisationID, objectKey string, parsed csvimport.ParseResult) (ImportResult, error)
 	SubmitForReview(ctx context.Context, organisationID, versionID string) (Version, error)
@@ -111,15 +115,30 @@ type Store interface {
 }
 
 type FrameworkPublished struct {
-	Type               string
-	OrganisationID     string
-	FrameworkVersionID string
-	ActorPersonID      string
-	OccurredAt         string
+	Type               string `json:"type"`
+	OrganisationID     string `json:"organisationId"`
+	FrameworkVersionID string `json:"frameworkVersionId"`
+	ActorPersonID      string `json:"actorPersonId"`
+	OccurredAt         string `json:"occurredAt"`
 }
 
-type Publisher interface {
-	PublishFrameworkPublished(ctx context.Context, event FrameworkPublished) error
+const PublicationSchemaVersion = 1
+
+type OutboxEvent struct {
+	ID            string
+	EventType     string
+	SchemaVersion int
+	AggregateID   string
+	OccurredAt    time.Time
+	CorrelationID string
+	Payload       []byte
+}
+
+func (e OutboxEvent) validate() error {
+	if e.ID == "" || e.EventType == "" || e.SchemaVersion < 1 || e.AggregateID == "" || e.CorrelationID == "" || e.OccurredAt.IsZero() || len(e.Payload) == 0 {
+		return ErrInvalid
+	}
+	return nil
 }
 
 func importedFrameworkName(department string) string {

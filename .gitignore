@@ -3,3 +3,10 @@ node_modules/
 *.tsbuildinfo
 .DS_Store
 .env
+.bin/
+artifacts/
+.cache/
+.gomodcache/
+scripts/ci/node_modules/
+scripts/ci/package.json
+scripts/ci/package-lock.json

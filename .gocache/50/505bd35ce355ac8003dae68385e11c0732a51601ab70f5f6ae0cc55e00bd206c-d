@@ -1,0 +1,13 @@
+./codegen.go
+./configuration.go
+./extension.go
+./externalref.go
+./filter.go
+./inline.go
+./merge_schemas.go
+./merge_schemas_v1.go
+./operations.go
+./prune.go
+./schema.go
+./template_helpers.go
+./utils.go

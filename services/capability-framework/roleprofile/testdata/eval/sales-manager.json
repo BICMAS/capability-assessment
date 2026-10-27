@@ -1,0 +1,18 @@
+{
+  "name": "area sales manager",
+  "taxonomy": [
+    {"id": "skill-planning", "organisationId": "org-a", "name": "Territory planning", "category": "technical", "definition": "Plans coverage"},
+    {"id": "skill-coaching", "organisationId": "org-a", "name": "Coaching", "category": "leadership", "definition": "Coaches the team"},
+    {"id": "skill-pricing", "organisationId": "org-a", "name": "Pricing policy", "category": "domain", "definition": "Knows the pricing rules"}
+  ],
+  "output": {
+    "skills": [
+      {"skillId": "skill-planning", "kind": "technical", "definition": "Plans the territory for this role", "requiredProficiency": 3, "priority": "required", "rationale": "The role owns coverage"},
+      {"skillId": "skill-coaching", "kind": "behavioural", "definition": "Coaches sellers in this role", "requiredProficiency": 2, "priority": "preferred", "rationale": "The role leads a team"},
+      {"skillId": "skill-pricing", "kind": "knowledge", "definition": "Applies the pricing policy", "requiredProficiency": 3, "priority": "required", "rationale": "The role approves discounts"}
+    ]
+  },
+  "expectAccepted": 3,
+  "expectUncertainty": 0,
+  "expectUnsupported": 0
+}

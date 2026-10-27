@@ -3,6 +3,8 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"time"
 
 	nats "github.com/nats-io/nats.go"
 	js "github.com/nats-io/nats.go/jetstream"
@@ -37,8 +39,9 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 		return nil, err
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
-		Name:     StreamName,
-		Subjects: []string{PersonSignedInSubject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
+		Name:       StreamName,
+		Subjects:   []string{PersonSignedInSubject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject, "assessment.completed", "role_profile.published"},
+		Duplicates: 2 * time.Hour,
 	}); err != nil {
 		conn.Close()
 		return nil, err
@@ -57,7 +60,22 @@ func (p *Publisher) PublishFrameworkPublished(ctx context.Context, event framewo
 	if err != nil {
 		return err
 	}
-	_, err = p.stream.Publish(ctx, FrameworkSubject, payload)
+	return p.PublishPayload(ctx, FrameworkSubject, "", "", 0, payload)
+}
+
+func (p *Publisher) PublishPayload(ctx context.Context, subject, messageID, correlationID string, schemaVersion int, payload []byte) error {
+	msg := &nats.Msg{Subject: subject, Data: payload, Header: nats.Header{}}
+	if messageID != "" {
+		msg.Header.Set("Nats-Msg-Id", messageID)
+	}
+	if correlationID != "" {
+		msg.Header.Set("X-Correlation-Id", correlationID)
+	}
+	if schemaVersion > 0 {
+		msg.Header.Set("X-Schema-Version", strconv.Itoa(schemaVersion))
+	}
+	msg.Header.Set("X-Event-Type", subject)
+	_, err := p.stream.PublishMsg(ctx, msg)
 	return err
 }
 

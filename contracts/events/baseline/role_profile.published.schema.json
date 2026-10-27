@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:role_profile.published",
+  "title": "role_profile.published",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "profileId", "profileVersionId", "versionNumber", "actorPersonId", "occurredAt"],
+  "properties": {
+    "type": { "const": "role_profile.published" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "profileId": { "type": "string", "minLength": 1 },
+    "profileVersionId": { "type": "string", "minLength": 1 },
+    "versionNumber": { "type": "integer", "minimum": 1 },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

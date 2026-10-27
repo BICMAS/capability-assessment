@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/bicmas-academy/learn/services/assessment-gap/health"
 	"github.com/bicmas-academy/learn/services/assessment-gap/levels"
 	"github.com/bicmas-academy/learn/services/assessment-gap/migrations"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 const (
@@ -73,17 +73,13 @@ func run(logger *slog.Logger) error {
 	defer publisher.Close()
 	store := levels.NewSQLStore(db)
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: levels.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, db, databaseName)
-		}, []byte(secret), store, publisher),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(levels.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, db, databaseName)
+	}, []byte(secret), store, publisher), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

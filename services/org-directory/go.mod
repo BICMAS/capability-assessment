@@ -3,6 +3,7 @@ module github.com/bicmas-academy/learn/services/org-directory
 go 1.27
 
 require (
+	github.com/bicmas-academy/learn/services/httpserver v0.0.0
 	github.com/bicmas-academy/learn/services/token v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -28,3 +29,5 @@ require (
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
+
+replace github.com/bicmas-academy/learn/services/httpserver => ../httpserver

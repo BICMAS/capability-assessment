@@ -44,7 +44,7 @@ JOIN frameworks f ON f.id = v.framework_id AND f.organisation_id = v.organisatio
 WHERE v.organisation_id = $1
 ORDER BY v.version_number ASC;
 
--- name: PublishVersion :exec
+-- name: PublishVersion :execrows
 UPDATE framework_versions
 SET status = 'published'
 WHERE id = $1

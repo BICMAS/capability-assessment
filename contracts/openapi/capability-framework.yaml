@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Capability framework
   version: 0.1.0
-  description: Versioned capability frameworks. Published versions are immutable. Editing a published version inserts the next draft.
+  description: Versioned capability frameworks and role skills profiles. Published framework versions and published profile versions are immutable and do not share lifecycle states. Editing a published framework version inserts the next framework draft.
 servers:
   - url: http://localhost:8084
 paths:
@@ -236,6 +236,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Requirement"
+  /framework-versions/{versionId}/role-capabilities:
+    post:
+      operationId: addFrameworkRoleCapability
+      summary: Create a capability and its role requirement in one transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleCapability"
+      responses:
+        "201":
+          description: Capability and requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleCapability"
+        "409":
+          description: Published version cannot be changed
   /framework-versions/{versionId}/indicators:
     post:
       operationId: addBehaviouralIndicator
@@ -333,6 +356,489 @@ paths:
                 $ref: "#/components/schemas/Proposal"
         "409":
           description: Published version cannot be changed
+  /profile-roles:
+    post:
+      operationId: createProfileRole
+      summary: Register a role identity for a skills profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfileRole"
+      responses:
+        "201":
+          description: Role identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileRole"
+        "400":
+          description: Invalid role
+        "409":
+          description: Role name already exists in this organisation
+  /canonical-skills:
+    post:
+      operationId: createCanonicalSkill
+      summary: Register a canonical skill that a profile can reference
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCanonicalSkill"
+      responses:
+        "201":
+          description: Canonical skill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CanonicalSkill"
+        "400":
+          description: Invalid category or definition
+  /role-profiles:
+    post:
+      operationId: createRoleProfileDraft
+      summary: Create a role skills profile and its first draft version
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleProfile"
+      responses:
+        "201":
+          description: Profile and current draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfile"
+        "404":
+          description: Role or framework version was not found in this organisation
+        "409":
+          description: This role already has a profile
+  /role-profiles/{profileId}:
+    get:
+      operationId: readRoleProfile
+      summary: Read a profile and its current version
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/profileId"
+      responses:
+        "200":
+          description: Profile and current version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfile"
+        "404":
+          description: Profile was not found in this organisation
+  /role-profiles/{profileId}/versions:
+    get:
+      operationId: listRoleProfileVersions
+      summary: List every version of a role profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/profileId"
+      responses:
+        "200":
+          description: Profile versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleProfileVersion"
+        "404":
+          description: Profile was not found in this organisation
+  /role-profiles/{profileId}/compare:
+    get:
+      operationId: compareRoleProfileVersions
+      summary: Compare skill assignments between two versions of one profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/profileId"
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Version comparison
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileComparison"
+        "404":
+          description: Profile or version was not found in this organisation
+  /role-profiles/{profileId}/history:
+    get:
+      operationId: readRoleProfileHistory
+      summary: Read authorised audit events and reviewer comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/profileId"
+      responses:
+        "200":
+          description: Profile history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileHistory"
+        "404":
+          description: Profile was not found in this organisation
+  /role-profile-versions/{versionId}:
+    patch:
+      operationId: updateRoleProfileContext
+      summary: Update editable role context on a draft
+      description: Clients cannot set workflow status. expectedRevision must match the stored revision.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleProfileContext"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "409":
+          description: Stale revision or the version is no longer a draft
+  /role-profile-versions/{versionId}/skills:
+    post:
+      operationId: addRoleProfileSkill
+      summary: Add a skill assignment to a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddRoleProfileSkill"
+      responses:
+        "201":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "400":
+          description: Invalid category, proficiency, priority, or provenance
+        "409":
+          description: Duplicate skill or stale revision
+  /role-profile-versions/{versionId}/skills/{skillAssignmentId}:
+    patch:
+      operationId: updateRoleProfileSkill
+      summary: Edit a skill assignment on a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+        - $ref: "#/components/parameters/skillAssignmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleProfileSkill"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "409":
+          description: Stale revision or the version is immutable
+    delete:
+      operationId: removeRoleProfileSkill
+      summary: Remove a skill assignment from a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+        - $ref: "#/components/parameters/skillAssignmentId"
+        - name: expectedRevision
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+  /role-profile-versions/{versionId}/skill-order:
+    put:
+      operationId: reorderRoleProfileSkills
+      summary: Reorder skill assignments on a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderRoleProfileSkills"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+  /role-profile-versions/{versionId}/submit:
+    post:
+      operationId: submitRoleProfile
+      summary: Submit a complete draft for review
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleProfileRevision"
+      responses:
+        "200":
+          description: Version in review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "409":
+          description: The version is not a draft or the revision is stale
+  /role-profile-versions/{versionId}/publish:
+    post:
+      operationId: publishRoleProfile
+      summary: Publish a profile that is in review
+      description: Publication is a server-side transition from profile_in_review. Clients cannot set the published status directly.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleProfileRevision"
+      responses:
+        "200":
+          description: Immutable published version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "409":
+          description: The version has not passed review or the revision is stale
+  /role-profile-versions/{versionId}/next-draft:
+    post:
+      operationId: createNextRoleProfileDraft
+      summary: Insert the next draft from a published profile version
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleProfileRevision"
+      responses:
+        "201":
+          description: New draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "409":
+          description: The source version is not the latest published version
+  /role-profile-versions/{versionId}/comments:
+    post:
+      operationId: commentOnRoleProfile
+      summary: Add a reviewer comment while the version is in review
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleProfileComment"
+      responses:
+        "201":
+          description: Reviewer comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileComment"
+        "409":
+          description: Comments are only accepted while the version is in review
+  /role-profile-versions/{versionId}/clarification:
+    post:
+      operationId: startRoleProfileClarification
+      summary: Ask for missing role context and save the session
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Clarification session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileClarification"
+    get:
+      operationId: readRoleProfileClarification
+      summary: Resume a saved clarification session
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Saved clarification session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileClarification"
+  /role-profile-versions/{versionId}/clarification/answers:
+    post:
+      operationId: answerRoleProfileClarification
+      summary: Save clarification answers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleProfileAnswers"
+      responses:
+        "200":
+          description: Updated clarification session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileClarification"
+  /role-profile-versions/{versionId}/generation:
+    post:
+      operationId: startRoleProfileGeneration
+      summary: Queue role skills profile generation for a context version
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRoleProfileGeneration"
+      responses:
+        "202":
+          description: Generation job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileGenerationJob"
+        "200":
+          description: Existing generation job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileGenerationJob"
+        "409":
+          description: The context is stale or critical information is unresolved
+        "429":
+          description: The tenant generation budget is exhausted
+  /role-profile-jobs/{jobId}:
+    get:
+      operationId: readRoleProfileGenerationJob
+      summary: Read a role skills profile generation job
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "200":
+          description: Generation job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileGenerationJob"
+  /role-profile-jobs/{jobId}/retry:
+    post:
+      operationId: retryRoleProfileGenerationJob
+      summary: Queue the same generation job again when the context has not changed
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "202":
+          description: Generation job queued again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileGenerationJob"
+        "409":
+          description: The stored context no longer matches the job
+  /role-profile-jobs/{jobId}/cancel:
+    post:
+      operationId: cancelRoleProfileGenerationJob
+      summary: Cancel a queued or running generation job
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "200":
+          description: Generation job cancellation recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileGenerationJob"
 components:
   securitySchemes:
     bearerAuth:
@@ -346,8 +852,26 @@ components:
       required: true
       schema:
         type: string
+    jobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
     proposalId:
       name: proposalId
+      in: path
+      required: true
+      schema:
+        type: string
+    profileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+    skillAssignmentId:
+      name: skillAssignmentId
       in: path
       required: true
       schema:
@@ -561,6 +1085,26 @@ components:
           type: string
         requiredLevel:
           type: integer
+    CreateRoleCapability:
+      type: object
+      additionalProperties: false
+      required: [name, roleId, requiredLevel]
+      properties:
+        name:
+          type: string
+        roleId:
+          type: string
+        requiredLevel:
+          type: integer
+    RoleCapability:
+      type: object
+      additionalProperties: false
+      required: [capability, requirement]
+      properties:
+        capability:
+          $ref: "#/components/schemas/Capability"
+        requirement:
+          $ref: "#/components/schemas/Requirement"
     CreateIndicator:
       type: object
       additionalProperties: false
@@ -581,3 +1125,563 @@ components:
           type: string
         roleName:
           type: string
+    CreateProfileRole:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+    ProfileRole:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+    CreateCanonicalSkill:
+      type: object
+      additionalProperties: false
+      required: [name, category, definition]
+      properties:
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        definition:
+          type: string
+    CanonicalSkill:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name, category, definition]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        definition:
+          type: string
+    SkillCategory:
+      type: string
+      enum: [technical, leadership, domain, communication, compliance]
+    SkillPriority:
+      type: string
+      enum: [required, preferred, optional]
+    SkillProvenance:
+      type: string
+      enum: [ai_suggested, hr_adjusted, imported, manually_added]
+    ProfileStatus:
+      type: string
+      enum: [profile_draft, profile_in_review, profile_published]
+    CreateRoleProfile:
+      type: object
+      additionalProperties: false
+      required: [roleId]
+      properties:
+        roleId:
+          type: string
+        frameworkVersionId:
+          type: string
+    RoleProfile:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, roleId, roleName, createdByPersonId, createdAt, version]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        roleId:
+          type: string
+        roleName:
+          type: string
+        createdByPersonId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          $ref: "#/components/schemas/RoleProfileVersion"
+    RoleProfileVersion:
+      type: object
+      additionalProperties: false
+      required: [id, profileId, organisationId, versionNumber, revision, status, purpose, responsibilities, businessOutcomes, decisionScope, industry, region, teamSize, reportingLevel, frameworkVersionId, sources, skills, ai, createdAt]
+      properties:
+        id:
+          type: string
+        profileId:
+          type: string
+        organisationId:
+          type: string
+        versionNumber:
+          type: integer
+        revision:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ProfileStatus"
+        purpose:
+          type: string
+        responsibilities:
+          type: string
+        businessOutcomes:
+          type: string
+        decisionScope:
+          type: string
+        industry:
+          type: string
+        region:
+          type: string
+        teamSize:
+          type: integer
+          nullable: true
+        reportingLevel:
+          type: string
+        frameworkVersionId:
+          type: string
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileSource"
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileSkill"
+        ai:
+          $ref: "#/components/schemas/RoleProfileAI"
+        createdAt:
+          type: string
+          format: date-time
+    RoleProfileSource:
+      type: object
+      additionalProperties: false
+      required: [id, title, referenceUri]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        referenceUri:
+          type: string
+    RoleProfileSkill:
+      type: object
+      additionalProperties: false
+      required: [id, skillId, skillName, category, definition, requiredProficiency, priority, rationale, provenance, position]
+      properties:
+        id:
+          type: string
+        skillId:
+          type: string
+        skillName:
+          type: string
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        definition:
+          type: string
+        requiredProficiency:
+          type: integer
+          minimum: 0
+          maximum: 4
+        priority:
+          $ref: "#/components/schemas/SkillPriority"
+        rationale:
+          type: string
+        provenance:
+          $ref: "#/components/schemas/SkillProvenance"
+        position:
+          type: integer
+    RoleProfileAI:
+      type: object
+      additionalProperties: false
+      required: [model, sourceContextVersion, generatedAt, draft]
+      properties:
+        model:
+          type: string
+        sourceContextVersion:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        draft:
+          type: object
+          nullable: true
+          additionalProperties: true
+    UpdateRoleProfileContext:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, purpose, responsibilities, businessOutcomes, decisionScope, industry, region, teamSize, reportingLevel, sources]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        purpose:
+          type: string
+        responsibilities:
+          type: string
+        businessOutcomes:
+          type: string
+        decisionScope:
+          type: string
+        industry:
+          type: string
+        region:
+          type: string
+        teamSize:
+          type: integer
+          nullable: true
+        reportingLevel:
+          type: string
+        sources:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, referenceUri]
+            properties:
+              title:
+                type: string
+              referenceUri:
+                type: string
+    AddRoleProfileSkill:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, skillId, category, definition, requiredProficiency, priority, rationale, provenance]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        skillId:
+          type: string
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        definition:
+          type: string
+        requiredProficiency:
+          type: integer
+        priority:
+          $ref: "#/components/schemas/SkillPriority"
+        rationale:
+          type: string
+        provenance:
+          type: string
+          enum: [imported, manually_added]
+    UpdateRoleProfileSkill:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, definition, requiredProficiency, priority, rationale]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        definition:
+          type: string
+        requiredProficiency:
+          type: integer
+        priority:
+          $ref: "#/components/schemas/SkillPriority"
+        rationale:
+          type: string
+    ReorderRoleProfileSkills:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, skillAssignmentIds]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        skillAssignmentIds:
+          type: array
+          items:
+            type: string
+    RoleProfileRevision:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+    CreateRoleProfileComment:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+    RoleProfileComment:
+      type: object
+      additionalProperties: false
+      required: [id, profileVersionId, authorPersonId, body, createdAt]
+      properties:
+        id:
+          type: string
+        profileVersionId:
+          type: string
+        authorPersonId:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    RoleProfileComparison:
+      type: object
+      additionalProperties: false
+      required: [from, to, added, removed, changed]
+      properties:
+        from:
+          $ref: "#/components/schemas/RoleProfileVersion"
+        to:
+          $ref: "#/components/schemas/RoleProfileVersion"
+        added:
+          type: array
+          items:
+            type: string
+        removed:
+          type: array
+          items:
+            type: string
+        changed:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [skillId, fromProficiency, toProficiency, fromPriority, toPriority]
+            properties:
+              skillId:
+                type: string
+              fromProficiency:
+                type: integer
+              toProficiency:
+                type: integer
+              fromPriority:
+                type: string
+              toPriority:
+                type: string
+    RoleProfileHistory:
+      type: object
+      additionalProperties: false
+      required: [profileId, events, comments]
+      properties:
+        profileId:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, profileVersionId, actorPersonId, action, occurredAt]
+            properties:
+              id:
+                type: string
+              profileVersionId:
+                type: string
+              actorPersonId:
+                type: string
+              action:
+                type: string
+              occurredAt:
+                type: string
+                format: date-time
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileComment"
+    RoleProfileClarification:
+      type: object
+      additionalProperties: false
+      required: [profileVersionId, contextVersion, contextHash, round, questions, unresolved, complete, snapshot]
+      properties:
+        profileVersionId:
+          type: string
+        contextVersion:
+          type: integer
+        contextHash:
+          type: string
+        round:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileQuestion"
+        unresolved:
+          type: array
+          items:
+            type: string
+        complete:
+          type: boolean
+        snapshot:
+          $ref: "#/components/schemas/RoleProfileContextSnapshot"
+    RoleProfileQuestion:
+      type: object
+      additionalProperties: false
+      required: [id, profileVersionId, contextVersion, round, field, question, critical, answer, unresolved, askedActorId, answeredActorId, askedAt]
+      properties:
+        id:
+          type: string
+        profileVersionId:
+          type: string
+        contextVersion:
+          type: integer
+        round:
+          type: integer
+        field:
+          type: string
+        question:
+          type: string
+        critical:
+          type: boolean
+        answer:
+          type: string
+        unresolved:
+          type: boolean
+        askedActorId:
+          type: string
+        answeredActorId:
+          type: string
+        askedAt:
+          type: string
+          format: date-time
+        answeredAt:
+          type: string
+          format: date-time
+          nullable: true
+    RoleProfileContextSnapshot:
+      type: object
+      additionalProperties: false
+      required: [purpose, responsibilities, businessOutcomes, decisionScope, reportingLevel, industry, region, sources]
+      properties:
+        purpose:
+          type: string
+        responsibilities:
+          type: string
+        businessOutcomes:
+          type: string
+        decisionScope:
+          type: string
+        reportingLevel:
+          type: string
+        industry:
+          type: string
+        region:
+          type: string
+        teamSize:
+          type: integer
+          nullable: true
+        sources:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, referenceUri]
+            properties:
+              title:
+                type: string
+              referenceUri:
+                type: string
+    RoleProfileAnswers:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [questionId, value]
+            properties:
+              questionId:
+                type: string
+              value:
+                type: string
+    StartRoleProfileGeneration:
+      type: object
+      additionalProperties: false
+      required: [contextVersion, idempotencyKey]
+      properties:
+        contextVersion:
+          type: integer
+        idempotencyKey:
+          type: string
+    RoleProfileGenerationJob:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, profileVersionId, contextVersion, contextHash, idempotencyKey, status, modelId, promptVersion, inputHash, outputHash, latencyMs, promptTokens, completionTokens, attempts, lastError, unsupported, uncertainty, cancelRequested, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        profileVersionId:
+          type: string
+        contextVersion:
+          type: integer
+        contextHash:
+          type: string
+        idempotencyKey:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, stale, cancelled]
+        modelId:
+          type: string
+        promptVersion:
+          type: string
+        inputHash:
+          type: string
+        outputHash:
+          type: string
+        latencyMs:
+          type: integer
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        attempts:
+          type: integer
+        lastError:
+          type: string
+        unsupported:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [skillId, kind, reason]
+            properties:
+              skillId:
+                type: string
+              kind:
+                type: string
+              reason:
+                type: string
+        uncertainty:
+          type: array
+          items:
+            type: string
+        result:
+          type: object
+          additionalProperties: true
+        cancelRequested:
+          type: boolean
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true

@@ -1,0 +1,7 @@
+# Regenerates openapi/models.gen.go from the capability-framework contract.
+package: openapi
+generate:
+  models: true
+output: openapi/models.gen.go
+output-options:
+  skip-prune: true

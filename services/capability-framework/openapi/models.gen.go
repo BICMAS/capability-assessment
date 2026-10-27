@@ -98,6 +98,17 @@ type CreateRequirement struct {
 	RoleId        string `json:"roleId"`
 }
 
+type CreateRoleCapability struct {
+	Name          string `json:"name"`
+	RequiredLevel int    `json:"requiredLevel"`
+	RoleId        string `json:"roleId"`
+}
+
+type RoleCapability struct {
+	Capability  Capability  `json:"capability"`
+	Requirement Requirement `json:"requirement"`
+}
+
 type CreateIndicator struct {
 	CapabilityId string `json:"capabilityId"`
 	Level        int    `json:"level"`

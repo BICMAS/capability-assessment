@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:assessment.assigned",
+  "title": "assessment.assigned",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "organisationId", "personId", "assignmentId", "actorPersonId", "frameworkVersionId", "roleId", "occurredAt"],
+  "properties": {
+    "type": { "const": "assessment.assigned" },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "personId": { "type": "string", "minLength": 1 },
+    "assignmentId": { "type": "string", "minLength": 1 },
+    "actorPersonId": { "type": "string", "minLength": 1 },
+    "frameworkVersionId": { "type": "string", "minLength": 1 },
+    "roleId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

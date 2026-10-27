@@ -46,6 +46,8 @@ func Open(ctx context.Context, natsURL string) (*Publisher, error) {
 			LearningSubject,
 			AssessmentSubject,
 			PlanApprovedSubject,
+			"assessment.completed",
+			"role_profile.published",
 		},
 	}); err != nil {
 		conn.Close()

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -16,11 +15,13 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/bicmas-academy/learn/services/capability-framework/blob"
-	"github.com/bicmas-academy/learn/services/capability-framework/db"
 	"github.com/bicmas-academy/learn/services/capability-framework/events"
 	"github.com/bicmas-academy/learn/services/capability-framework/framework"
 	"github.com/bicmas-academy/learn/services/capability-framework/health"
 	"github.com/bicmas-academy/learn/services/capability-framework/migrations"
+	"github.com/bicmas-academy/learn/services/capability-framework/outbox"
+	"github.com/bicmas-academy/learn/services/capability-framework/roleprofile"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 const (
@@ -77,19 +78,25 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer publisher.Close()
-	store := framework.NewSQLStore(db.New(database))
+	store := framework.NewSQLStore(database)
+	profiles := roleprofile.NewSQLStore(database)
+	var provider roleprofile.Provider
+	if key := strings.TrimSpace(os.Getenv("ROLE_PROFILE_MODEL_API_KEY")); key != "" {
+		provider = roleprofile.HTTPProvider{APIKey: key, Model: os.Getenv("ROLE_PROFILE_MODEL_NAME"), Endpoint: os.Getenv("ROLE_PROFILE_MODEL_URL")}
+	}
+	profileWorkflow := roleprofile.NewWorkflow(profiles, provider, roleprofile.DefaultLimits(), logger)
+	relayCtx, stopRelay := context.WithCancel(context.Background())
+	defer stopRelay()
+	go outbox.NewRelay(outbox.NewSQLStore(database), publisher, &outbox.Metrics{}, logger).Run(relayCtx)
+	go profileWorkflow.Run(relayCtx)
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: framework.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, database, databaseName)
-		}, []byte(secret), store, bucket, publisher),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(framework.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, database, databaseName)
+	}, []byte(secret), store, bucket, profiles, profileWorkflow), health.ServiceName, logger, httpserver.UploadMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadBucket() (blob.Store, error) {

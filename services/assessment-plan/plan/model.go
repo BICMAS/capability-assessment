@@ -228,9 +228,21 @@ type PlanApproved struct {
 	OccurredAt     string
 }
 
+type AssessmentCompleted struct {
+	Type             string
+	OrganisationID   string
+	PersonID         string
+	SessionID        string
+	PlanID           string
+	ActorPersonID    string
+	ProfileVersionID string
+	OccurredAt       string
+}
+
 type Publisher interface {
 	PublishAssessmentAssigned(ctx context.Context, event AssessmentAssigned) error
 	PublishPlanApproved(ctx context.Context, event PlanApproved) error
+	PublishAssessmentCompleted(ctx context.Context, event AssessmentCompleted) error
 }
 
 type AssignPerson struct {

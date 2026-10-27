@@ -1,0 +1,10 @@
+{
+  "type": "assessment.plan_approved",
+  "organisationId": "8f0c2d44-6a1e-4b7a-9c3d-1e5f7a9b0c21",
+  "personId": "7d2b6f18-9c40-4e15-8a73-5b1d0e6f4a22",
+  "assignmentId": "2b3c4d5e-6f70-8192-a3b4-c5d6e7f80910",
+  "planId": "5e6f7081-92a3-b4c5-d6e7-f8091a2b3c4d",
+  "actorPersonId": "7d2b6f18-9c40-4e15-8a73-5b1d0e6f4a22",
+  "versionNumber": 1,
+  "occurredAt": "2026-10-11T18:00:00Z"
+}

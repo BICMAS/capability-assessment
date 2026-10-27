@@ -2,6 +2,7 @@ package jetstream
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -45,7 +46,7 @@ func Subscribe(ctx context.Context, natsURL string, store records.Store, logger 
 	}
 	if _, err := stream.CreateOrUpdateStream(ctx, js.StreamConfig{
 		Name:     StreamName,
-		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject},
+		Subjects: []string{Subject, AssignmentSubject, FrameworkSubject, LevelSubject, LearningSubject, AssessmentSubject, PlanApprovedSubject, "assessment.completed", "role_profile.published"},
 	}); err != nil {
 		conn.Close()
 		return nil, err
@@ -128,6 +129,8 @@ func consume(stream js.JetStream, ctx context.Context, durable, subject string, 
 		Durable:       durable,
 		FilterSubject: subject,
 		AckPolicy:     js.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxDeliver:    10,
 	})
 	if err != nil {
 		return nil, err
@@ -137,7 +140,7 @@ func consume(stream js.JetStream, ctx context.Context, durable, subject string, 
 		defer cancel()
 		if err := apply(applyCtx, msg.Data()); err != nil {
 			logger.Error("audit record failed", "subject", subject, "err", err)
-			if nakErr := msg.Nak(); nakErr != nil {
+			if nakErr := msg.NakWithDelay(time.Second); nakErr != nil {
 				logger.Error("nak failed", "err", nakErr)
 			}
 			return
@@ -156,4 +159,11 @@ func (s *Subscription) Close() {
 		active.Stop()
 	}
 	s.conn.Close()
+}
+
+func (s *Subscription) Ready() error {
+	if s == nil || s.conn == nil || !s.conn.IsConnected() {
+		return errors.New("nats unavailable")
+	}
+	return nil
 }

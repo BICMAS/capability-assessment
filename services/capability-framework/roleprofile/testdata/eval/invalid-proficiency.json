@@ -1,0 +1,14 @@
+{
+  "name": "invalid proficiency",
+  "taxonomy": [
+    {"id": "skill-planning", "organisationId": "org-a", "name": "Territory planning", "category": "technical", "definition": "Plans coverage"}
+  ],
+  "output": {
+    "skills": [
+      {"skillId": "skill-planning", "kind": "technical", "definition": "Plans the territory for this role", "requiredProficiency": 9, "priority": "required", "rationale": "The role owns coverage"}
+    ]
+  },
+  "expectAccepted": 0,
+  "expectUncertainty": 3,
+  "expectUnsupported": 1
+}

@@ -31,11 +31,20 @@ func TestHealth(t *testing.T) {
 }
 
 func TestHealthReportsDatabaseFailure(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	response := httptest.NewRecorder()
 	NewRouter(func(context.Context) error { return errors.New("database unavailable") }).ServeHTTP(response, request)
 
 	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+func TestLiveIgnoresDependencyFailure(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	response := httptest.NewRecorder()
+	NewRouter(func(context.Context) error { return errors.New("database unavailable") }).ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d", response.Code)
 	}
 }

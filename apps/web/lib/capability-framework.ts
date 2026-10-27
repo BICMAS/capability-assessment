@@ -85,6 +85,26 @@ export function addCapability(token: string, versionId: string, name: string): P
   );
 }
 
+export type RoleCapability = {
+  capability: Capability;
+  requirement: Requirement;
+};
+
+export function addRoleCapability(
+  token: string,
+  versionId: string,
+  roleId: string,
+  name: string,
+  requiredLevel: number,
+): Promise<RoleCapability> {
+  return request(
+    token,
+    `/framework-versions/${versionId}/role-capabilities`,
+    { method: "POST", body: { name, roleId, requiredLevel } },
+    isRoleCapability,
+  );
+}
+
 export function addRequirement(
   token: string,
   versionId: string,
@@ -268,6 +288,10 @@ function isRequirement(value: unknown): value is Requirement {
     typeof value.capabilityId === "string" &&
     typeof value.requiredLevel === "number"
   );
+}
+
+function isRoleCapability(value: unknown): value is RoleCapability {
+  return isRecord(value) && isCapability(value.capability) && isRequirement(value.requirement);
 }
 
 function isRowError(value: unknown): value is RowError {

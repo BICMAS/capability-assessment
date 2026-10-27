@@ -1,0 +1,9 @@
+{
+  "type": "audit.recorded",
+  "actorPersonId": "7d2b6f18-9c40-4e15-8a73-5b1d0e6f4a22",
+  "organisationId": "8f0c2d44-6a1e-4b7a-9c3d-1e5f7a9b0c21",
+  "action": "framework.published",
+  "entityType": "framework_version",
+  "entityId": "3a1c9e70-2d48-4f16-8b95-0c7e4a1d2f33",
+  "occurredAt": "2026-10-11T18:00:00Z"
+}

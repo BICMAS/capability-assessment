@@ -75,6 +75,7 @@ func TestAdaAssignsEliToThePublishedNegotiationRole(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		ProfileBridge{},
 	)
 	token := sign(t, adaClaims())
 
@@ -196,6 +197,10 @@ func decodeBatch(t *testing.T, response *httptest.ResponseRecorder) []openapi.As
 
 type recordingPublisher struct {
 	events []AssessmentAssigned
+}
+
+func (p *recordingPublisher) PublishAssessmentCompleted(context.Context, AssessmentCompleted) error {
+	return nil
 }
 
 func (p *recordingPublisher) PublishPlanApproved(context.Context, PlanApproved) error {

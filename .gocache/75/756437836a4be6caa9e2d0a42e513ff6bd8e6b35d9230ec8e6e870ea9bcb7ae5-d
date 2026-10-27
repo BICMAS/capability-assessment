@@ -1,0 +1,12 @@
+./calculate.go
+./fold.go
+./http.go
+./id.go
+./memory.go
+./model.go
+./router.go
+./sql_store.go
+./tenths.go
+./http_test.go
+./override_test.go
+./regression_test.go

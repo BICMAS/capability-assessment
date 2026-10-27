@@ -1,0 +1,23 @@
+/* Design tokens — visual language preserved from the original studio palette. */
+:root {
+  --field: #f3efe7;
+  --card: #fffcf7;
+  --ink: #1c1914;
+  --hairline: #ddd4c6;
+  --copper: #8c3f24;
+  --pine: #1e4636;
+  --danger: #8c3f24;
+  --success: #1e4636;
+  --type-display: var(--font-display), "Fraunces", serif;
+  --type-interface: var(--font-sans), "Instrument Sans", sans-serif;
+  --nav-width: 200px;
+  --main-max: 1120px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --focus-ring: 2px solid var(--ink);
+  --focus-offset: 3px;
+}

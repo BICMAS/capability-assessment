@@ -11,4 +11,5 @@ use (
 	./services/notify
 	./services/org-directory
 	./services/token
+	./services/httpserver
 )

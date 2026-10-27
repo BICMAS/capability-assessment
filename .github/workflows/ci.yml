@@ -1,0 +1,263 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Go version from go.work
+        id: goversion
+        run: |
+          version="$(awk '/^go / { print $2; exit }' go.work)"
+          if [ -z "$version" ]; then
+            echo "could not read go version from go.work" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.goversion.outputs.version }}
+          cache-dependency-path: |
+            go.sum
+            **/go.sum
+
+      - name: Verify toolchain matches go.work
+        run: |
+          want="${{ steps.goversion.outputs.version }}"
+          got="$(go env GOVERSION | sed 's/^go//')"
+          echo "go.work wants ${want}; runner has ${got}"
+          case "${got}" in
+            ${want}|${want}.*) ;;
+            *)
+              echo "Go toolchain ${got} does not satisfy go.work ${want}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Format
+        run: |
+          unformatted="$(gofmt -l $(find . -name '*.go' -not -path './.gomodcache/*' -not -path './vendor/*'))"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needed on:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Vet
+        run: bash scripts/ci/go-vet.sh
+
+      - name: Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          bash scripts/ci/go-staticcheck.sh
+
+      - name: Unit tests
+        run: bash scripts/ci/go-test.sh
+
+      - name: Upload Go test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-test-log
+          path: artifacts/go-test.log
+          if-no-files-found: ignore
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload web build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: |
+            apps/web/.next/trace
+            apps/web/tsconfig.tsbuildinfo
+          if-no-files-found: ignore
+
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Go version from go.work
+        id: goversion
+        run: |
+          version="$(awk '/^go / { print $2; exit }' go.work)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.goversion.outputs.version }}
+          cache-dependency-path: |
+            go.sum
+            **/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Validate OpenAPI
+        run: bash scripts/ci/validate-openapi.sh
+
+      - name: Validate event schemas
+        run: bash scripts/ci/validate-events.sh
+
+      - name: Install pinned sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.26.0
+
+      - name: Check generated code
+        run: bash scripts/ci/check-generated.sh
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read Go version from go.work
+        id: goversion
+        run: |
+          version="$(awk '/^go / { print $2; exit }' go.work)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.goversion.outputs.version }}
+          cache-dependency-path: |
+            go.sum
+            **/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Go vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          bash scripts/ci/govulncheck.sh
+
+      - name: npm production audit
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    needs: [go]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bicmas
+          POSTGRES_PASSWORD: bicmas
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bicmas -d postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+      nats:
+        image: nats:2.11-alpine
+        ports:
+          - 4222:4222
+        options: >-
+          --health-cmd "nc -z 127.0.0.1 4222"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      NATS_URL: nats://127.0.0.1:4222
+      INTEGRATION_DATABASE_URL: postgresql://bicmas:bicmas@127.0.0.1:5432/capability_framework?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Go version from go.work
+        id: goversion
+        run: |
+          version="$(awk '/^go / { print $2; exit }' go.work)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.goversion.outputs.version }}
+          cache-dependency-path: |
+            go.sum
+            **/go.sum
+
+      - name: Create databases
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          for db in audit notify org_directory capability_framework assessment_gap development assessment_plan; do
+            PGPASSWORD=bicmas psql -h 127.0.0.1 -U bicmas -d postgres -c "CREATE DATABASE ${db};"
+          done
+
+      - name: Integration tests
+        run: bash scripts/ci/go-integration.sh
+
+      - name: Upload integration log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-integration-log
+          path: artifacts/go-integration.log
+          if-no-files-found: ignore

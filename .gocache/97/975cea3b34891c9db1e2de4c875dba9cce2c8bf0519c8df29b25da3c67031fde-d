@@ -1,0 +1,9 @@
+./allpaths.go
+./compact.go
+./graph.go
+./index.go
+./order.go
+./reachable.go
+./scc.go
+./shortest.go
+./transpose.go

@@ -19,6 +19,7 @@ import (
 	"github.com/bicmas-academy/learn/services/assessment-plan/health"
 	"github.com/bicmas-academy/learn/services/assessment-plan/migrations"
 	"github.com/bicmas-academy/learn/services/assessment-plan/plan"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 const (
@@ -88,17 +89,25 @@ func run(logger *slog.Logger) error {
 		Client:   &http.Client{Timeout: 60 * time.Second},
 	}
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: plan.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, db, databaseName)
-		}, []byte(secret), store, plan.HTTPFramework{BaseURL: frameworkURL, Client: client}, plan.HTTPDirectory{BaseURL: directoryURL, Client: client}, publisher, drafter, drafter, plan.HTTPGap{BaseURL: os.Getenv("ASSESSMENT_GAP_URL"), Client: client}),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	// LongRequestTimeouts keep synchronous model drafting under WriteTimeout until
+	// plan generation is moved to an asynchronous job.
+	timeouts := httpserver.LongRequestTimeouts()
+	handler := httpserver.Wrap(plan.NewRouter(func(ctx context.Context) error {
+		return checkDatabase(ctx, db, databaseName)
+	}, []byte(secret), store, plan.HTTPFramework{BaseURL: frameworkURL, Client: client}, plan.HTTPDirectory{BaseURL: directoryURL, Client: client}, publisher, drafter, drafter, plan.HTTPGap{BaseURL: os.Getenv("ASSESSMENT_GAP_URL"), Client: client}, plan.ProfileBridge{
+		Profiles: plan.HTTPProfile{BaseURL: frameworkURL, Client: client},
+		Tenures:  plan.HTTPDirectory{BaseURL: directoryURL, Client: client},
+		Levels:   plan.HTTPLevels{BaseURL: os.Getenv("ASSESSMENT_GAP_URL"), Client: client},
+		People:   plan.HTTPDirectory{BaseURL: directoryURL, Client: client},
+	}), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured",
+		"service", health.ServiceName,
+		"addr", server.Addr,
+		"database", databaseName,
+		"write_timeout", timeouts.WriteTimeout.String(),
+	)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

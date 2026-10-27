@@ -1,0 +1,13 @@
+extends:
+  - recommended
+
+rules:
+  # Existing service contracts document localhost and omit per-operation summaries/security;
+  # keep structural validity as the gate without forcing a full rewrite in this change.
+  info-license: off
+  no-server-example.com: off
+  no-empty-servers: off
+  operation-summary: off
+  security-defined: off
+  operation-4xx-response: warn
+  no-unused-components: warn

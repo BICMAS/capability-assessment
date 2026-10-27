@@ -25,7 +25,7 @@ func TestServiceHealth(t *testing.T) {
 		handler http.Handler
 		service string
 	}{
-		{"gateway", gateway.NewRouter(), gateway.ServiceName},
+		{"gateway", gateway.NewRouter(ready), gateway.ServiceName},
 		{"audit", audit.NewRouter(ready), audit.ServiceName},
 		{"notify", notify.NewRouter(ready), notify.ServiceName},
 		{"org-directory", org_directory.NewRouter(ready), org_directory.ServiceName},

@@ -1,14 +1,6 @@
+@import "../styles/tokens.css";
+
 :root {
-  --field: #f3efe7;
-  --card: #fffcf7;
-  --ink: #1c1914;
-  --hairline: #ddd4c6;
-  --copper: #8c3f24;
-  --pine: #1e4636;
-  --type-display: var(--font-display), "Fraunces", serif;
-  --type-interface: var(--font-sans), "Instrument Sans", sans-serif;
-  --nav-width: 200px;
-  --main-max: 1120px;
   color: var(--ink);
   background: var(--field);
   font-family: var(--type-interface);
@@ -209,9 +201,24 @@ input[type="file"]::file-selector-button {
   text-transform: uppercase;
 }
 
-.login-error {
-  color: var(--copper);
+.login-error,
+.status-message.is-error {
+  color: var(--danger, var(--copper));
   margin: 0.25rem 0.5rem 0.75rem;
+}
+
+.status-message {
+  margin: 0.25rem 0.5rem 0.75rem;
+}
+
+.status-message.is-success {
+  color: var(--success, var(--pine));
+}
+
+.empty-state {
+  margin: 0.5rem 0;
+  color: var(--ink);
+  opacity: 0.72;
 }
 
 .app {
@@ -1519,6 +1526,136 @@ input[type="file"]::file-selector-button {
 
   .team-row:hover {
     background: var(--field);
+  }
+}
+
+.role-profile {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.role-profile h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.workflow-nav {
+  background: #16324f;
+  color: #f3efe7;
+  padding: 0.75rem;
+}
+
+.workflow-nav ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workflow-nav a,
+.workflow-nav span {
+  color: inherit;
+  display: inline-block;
+  padding: 0.35rem 0.55rem;
+  text-decoration: none;
+}
+
+.workflow-nav a[aria-current="step"] {
+  background: #1d4f91;
+}
+
+.role-profile button.primary {
+  background: #1d4f91;
+  border-color: #1d4f91;
+  color: #fffcf7;
+}
+
+.workflow-choices,
+.organogram {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.organogram li,
+.workflow-choices a {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.skill-scroll {
+  overflow-x: auto;
+}
+
+.skill-table {
+  border-collapse: collapse;
+  min-width: 52rem;
+  width: 100%;
+}
+
+.skill-table th,
+.skill-table td {
+  border-bottom: 1px solid var(--hairline);
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.provenance {
+  border: 1px solid var(--hairline);
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+}
+
+.provenance-ai {
+  border-color: #1d4f91;
+}
+
+.provenance-hr {
+  border-color: var(--pine);
+}
+
+.kind-note,
+.generation-meta {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.generation-meta {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0;
+}
+
+.generation-meta dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.generation-meta dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.role-profile .framework-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.role-profile .framework-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .workflow-nav ol {
+    display: grid;
   }
 }
 

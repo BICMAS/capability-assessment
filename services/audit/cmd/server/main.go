@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -20,6 +19,7 @@ import (
 	auditjetstream "github.com/bicmas-academy/learn/services/audit/jetstream"
 	"github.com/bicmas-academy/learn/services/audit/migrations"
 	"github.com/bicmas-academy/learn/services/audit/records"
+	"github.com/bicmas-academy/learn/services/httpserver"
 )
 
 const (
@@ -74,17 +74,16 @@ func run(logger *slog.Logger) error {
 	}
 	defer subscription.Close()
 
-	server := &http.Server{
-		Addr: listenAddr(),
-		Handler: records.NewRouter(func(ctx context.Context) error {
-			return checkDatabase(ctx, database, databaseName)
-		}, []byte(secret), store),
-	}
-	logger.Info("listening", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	timeouts := httpserver.StandardTimeouts()
+	handler := httpserver.Wrap(records.NewRouter(func(ctx context.Context) error {
+		if err := checkDatabase(ctx, database, databaseName); err != nil {
+			return err
+		}
+		return subscription.Ready()
+	}, []byte(secret), store), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	server := httpserver.New(listenAddr(), handler, timeouts)
+	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
+	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)
 }
 
 func loadDatabaseURL() (string, error) {

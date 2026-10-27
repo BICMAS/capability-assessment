@@ -1,15 +1,25 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { EmptyState, StatusMessage } from "@/components/ui/status-message";
+import { AssignmentStep } from "@/features/assignments/assignment-step";
+import { PlanStep } from "@/features/assessment-plans/plan-step";
+import { FrameworkEditor } from "@/features/frameworks/framework-editor";
 import { listAuditRecords, type AuditRecord } from "@/lib/audit";
 import { listFrameworkVersions, type FrameworkVersion } from "@/lib/capability-framework";
-import { listAssessmentSessions, readAssignment, readPlan, type AssessmentSession, type AssignmentResult } from "@/lib/generated/assessment-plan/plans";
+import {
+  listAssessmentSessions,
+  readAssignment,
+  readPlan,
+  type AssessmentSession,
+  type AssignmentResult,
+} from "@/lib/generated/assessment-plan/plans";
 import { listDepartments, listPeople, listRoleAssignments } from "@/lib/org-directory";
+import { settle } from "@/lib/safe";
 import { SESSION_COOKIE } from "@/lib/session";
 
-import { AssignmentStep } from "./assignment-step";
-import { FrameworkEditor } from "./framework-editor";
-import { PlanStep } from "./plan-step";
+export const dynamic = "force-dynamic";
 
 export default async function AdminPage({
   searchParams,
@@ -34,26 +44,34 @@ export default async function AdminPage({
     redirect("/");
   }
   const params = await searchParams;
+
   const [departments, roleAssignments, people, versions, records] = await Promise.all([
-    listDepartments(token),
-    listRoleAssignments(token),
-    listPeople(token),
-    listFrameworkVersions(token),
-    listAuditRecords(token),
+    settle(listDepartments(token), "Departments"),
+    settle(listRoleAssignments(token), "Role assignments"),
+    settle(listPeople(token), "People"),
+    settle(listFrameworkVersions(token), "Frameworks"),
+    settle(listAuditRecords(token), "Audit record"),
   ]);
+
   const assessment = await loadAssessment(token, params.assignment ?? "", params.plan ?? "");
+  const peopleList = people.ok ? people.value : [];
+  const versionList = versions.ok ? versions.value : [];
+  const roleList = roleAssignments.ok ? roleAssignments.value : [];
   const titles = new Map<string, string[]>();
-  for (const roleAssignment of roleAssignments) {
+  for (const roleAssignment of roleList) {
     const current = titles.get(roleAssignment.personId) ?? [];
     current.push(roleAssignment.title);
     titles.set(roleAssignment.personId, current);
   }
-  const published = versions.filter((version) => version.status === "published");
+  const published = versionList.filter((version) => version.status === "published");
   const assignmentResults = decodeResults(params.results);
-  const selectedVersion = versions.find((version) => version.id === assessment.assignment?.frameworkVersionId) ?? null;
+  const selectedVersion = versionList.find((version) => version.id === assessment.assignment?.frameworkVersionId) ?? null;
   const selectedRole = selectedVersion?.roles.find((role) => role.id === assessment.assignment?.roleId);
-  const personName = people.find((person) => person.id === assessment.assignment?.personId)?.name ?? "Person";
-  const approverName = people.find((person) => person.id === assessment.plan?.approvedByPersonId)?.name ?? assessment.plan?.approvedByPersonId ?? "";
+  const personName = peopleList.find((person) => person.id === assessment.assignment?.personId)?.name ?? "Person";
+  const approverName =
+    peopleList.find((person) => person.id === assessment.plan?.approvedByPersonId)?.name ??
+    assessment.plan?.approvedByPersonId ??
+    "";
   const saveError =
     params.save === "frozen" && params.framework && params.version
       ? `${params.framework} version ${params.version} cannot be changed.`
@@ -61,48 +79,67 @@ export default async function AdminPage({
 
   return (
     <div className="studio-page">
+      <p>
+        <Link className="learn-link" href="/admin/role-profiles">
+          Role skills profiles
+        </Link>
+      </p>
       <section className="studio-region">
         <header className="studio-step">
           <h2>Frameworks</h2>
-          <p className="studio-step-status">{frameworkStatus(versions)}</p>
+          <p className="studio-step-status">{versions.ok ? frameworkStatus(versionList) : versions.error}</p>
         </header>
-        <FrameworkEditor
-          versions={versions}
-          reviewBlocked={params.review === "blocked"}
-          blockedAction={params.action ?? ""}
-          blockedVersionId={params.versionId ?? ""}
-          importError={params.importError ?? ""}
-          saveError={saveError}
-          frozenFramework={params.framework ?? ""}
-          frozenVersion={params.version ?? ""}
-          frozenVersionId={params.save === "frozen" ? (params.versionId ?? "") : ""}
-        />
+        {versions.ok ? (
+          <FrameworkEditor
+            versions={versionList}
+            reviewBlocked={params.review === "blocked"}
+            blockedAction={params.action ?? ""}
+            blockedVersionId={params.versionId ?? ""}
+            importError={params.importError ?? ""}
+            saveError={saveError}
+            frozenFramework={params.framework ?? ""}
+            frozenVersion={params.version ?? ""}
+            frozenVersionId={params.save === "frozen" ? (params.versionId ?? "") : ""}
+          />
+        ) : (
+          <StatusMessage tone="error">{versions.error}</StatusMessage>
+        )}
       </section>
       <section className="studio-region" id="assignments">
         <header className="studio-step">
           <h2>Assignments</h2>
           <p className={assignmentResults.some((result) => result.outcome === "failed") ? "studio-step-status is-error" : "studio-step-status"}>
-            {assignmentStatus(assignmentResults)}
+            {!people.ok
+              ? people.error
+              : !versions.ok
+                ? versions.error
+                : assignmentStatus(assignmentResults)}
           </p>
         </header>
-        <AssignmentStep
-          people={people.map((person) => ({
-            id: person.id,
-            name: person.name,
-            departmentName: person.departmentName,
-            titles: titles.get(person.id) ?? [],
-          }))}
-          versions={published.map((version) => ({
-            id: version.id,
-            frameworkName: version.frameworkName,
-            versionNumber: version.versionNumber,
-            roles: version.roles,
-            capabilities: version.capabilities.map((capability) => ({ id: capability.id, name: capability.name })),
-            requirements: version.requirements,
-          }))}
-          results={assignmentResults}
-          error={params.assignmentError ?? ""}
-        />
+        {people.ok && versions.ok ? (
+          <AssignmentStep
+            people={peopleList.map((person) => ({
+              id: person.id,
+              name: person.name,
+              departmentName: person.departmentName,
+              titles: titles.get(person.id) ?? [],
+            }))}
+            versions={published.map((version) => ({
+              id: version.id,
+              frameworkName: version.frameworkName,
+              versionNumber: version.versionNumber,
+              roles: version.roles,
+              capabilities: version.capabilities.map((capability) => ({ id: capability.id, name: capability.name })),
+              requirements: version.requirements,
+            }))}
+            results={assignmentResults}
+            error={params.assignmentError ?? ""}
+          />
+        ) : (
+          <StatusMessage tone="error">
+            {!people.ok ? people.error : !versions.ok ? versions.error : "Assignments are unavailable."}
+          </StatusMessage>
+        )}
       </section>
       <section className="studio-region" id="plans">
         <header className="studio-step">
@@ -123,44 +160,58 @@ export default async function AdminPage({
             error={params.planError ?? assessment.error}
           />
         ) : (
-          <p>{assessment.error || "Confirm an assignment to generate a plan."}</p>
+          <EmptyState>{assessment.error || "Confirm an assignment to generate a plan."}</EmptyState>
         )}
       </section>
       <section className="studio-region">
         <h2>Organisation</h2>
-        <div className="org-grid">
-          <div>
-            <h3>Departments</h3>
-            <ul>
-              {departments.map((department) => (
-                <li key={department.id}>{department.name}</li>
-              ))}
-            </ul>
+        {!departments.ok || !roleAssignments.ok ? (
+          <StatusMessage tone="error">
+            {[!departments.ok ? departments.error : null, !roleAssignments.ok ? roleAssignments.error : null]
+              .filter(Boolean)
+              .join(" ")}
+          </StatusMessage>
+        ) : (
+          <div className="org-grid">
+            <div>
+              <h3>Departments</h3>
+              <ul>
+                {departments.value.length === 0 ? <li className="record-empty">None</li> : null}
+                {departments.value.map((department) => (
+                  <li key={department.id}>{department.name}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3>Role assignments</h3>
+              <ul>
+                {roleAssignments.value.length === 0 ? <li className="record-empty">None</li> : null}
+                {roleAssignments.value.map((assignment) => (
+                  <li key={assignment.id}>
+                    {assignment.personName} — {assignment.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <div>
-            <h3>Role assignments</h3>
-            <ul>
-              {roleAssignments.map((assignment) => (
-                <li key={assignment.id}>
-                  {assignment.personName} — {assignment.title}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        )}
       </section>
       <section className="studio-region">
         <h2>Record</h2>
-        <ul className="record-list">
-          {records.length === 0 ? <li className="record-empty">None</li> : null}
-          {records.map((record) => (
-            <li key={`${record.action}-${record.entityId}-${record.occurredAt}`}>
-              <span className="record-action">{record.action}</span>
-              <span className="record-actor">{record.actorPersonId}</span>
-              <time dateTime={record.occurredAt}>{recordTime(record)}</time>
-            </li>
-          ))}
-        </ul>
+        {!records.ok ? (
+          <StatusMessage tone="error">{records.error}</StatusMessage>
+        ) : (
+          <ul className="record-list">
+            {records.value.length === 0 ? <li className="record-empty">None</li> : null}
+            {records.value.map((record) => (
+              <li key={`${record.action}-${record.entityId}-${record.occurredAt}`}>
+                <span className="record-action">{record.action}</span>
+                <span className="record-actor">{record.actorPersonId}</span>
+                <time dateTime={record.occurredAt}>{recordTime(record)}</time>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

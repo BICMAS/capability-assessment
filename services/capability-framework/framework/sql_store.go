@@ -10,11 +10,12 @@ import (
 )
 
 type SQLStore struct {
-	queries *db.Queries
+	database *sql.DB
+	queries  *db.Queries
 }
 
-func NewSQLStore(queries *db.Queries) SQLStore {
-	return SQLStore{queries: queries}
+func NewSQLStore(database *sql.DB) SQLStore {
+	return SQLStore{database: database, queries: db.New(database)}
 }
 
 func (s SQLStore) CreateDraft(ctx context.Context, organisationID, name string) (Version, error) {
@@ -170,6 +171,79 @@ func (s SQLStore) AddRequirement(ctx context.Context, organisationID, versionID,
 	return Requirement{ID: id, RoleID: roleID, CapabilityID: capabilityID, RequiredLevel: requiredLevel}, nil
 }
 
+func (s SQLStore) AddRoleCapability(ctx context.Context, organisationID, versionID, roleID, name string, requiredLevel int) (Capability, Requirement, error) {
+	if name == "" || !validLevel(requiredLevel) {
+		return Capability{}, Requirement{}, ErrInvalid
+	}
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	queries := s.queries.WithTx(tx)
+	txStore := SQLStore{database: s.database, queries: queries}
+	version, err := txStore.editable(ctx, organisationID, versionID)
+	if err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	if !containsRole(version, roleID) {
+		return Capability{}, Requirement{}, ErrNotFound
+	}
+	capability := Capability{}
+	for _, existing := range version.Capabilities {
+		if existing.Name == name {
+			capability = existing
+			break
+		}
+	}
+	if capability.ID == "" {
+		id, err := newID()
+		if err != nil {
+			return Capability{}, Requirement{}, err
+		}
+		if err := queries.InsertCapability(ctx, db.InsertCapabilityParams{
+			ID:                 id,
+			OrganisationID:     organisationID,
+			FrameworkVersionID: versionID,
+			Name:               name,
+		}); err != nil {
+			return Capability{}, Requirement{}, err
+		}
+		capability = Capability{ID: id, Name: name, Levels: []ProficiencyLevel{}}
+	}
+	for _, requirement := range version.Requirements {
+		if requirement.RoleID == roleID && requirement.CapabilityID == capability.ID {
+			if err := tx.Commit(); err != nil {
+				return Capability{}, Requirement{}, err
+			}
+			return capability, requirement, nil
+		}
+	}
+	requirementID, err := newID()
+	if err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	if err := queries.InsertRoleCapabilityRequirement(ctx, db.InsertRoleCapabilityRequirementParams{
+		ID:                 requirementID,
+		OrganisationID:     organisationID,
+		FrameworkVersionID: versionID,
+		RoleID:             roleID,
+		CapabilityID:       capability.ID,
+		RequiredLevel:      int32(requiredLevel),
+	}); err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	return capability, Requirement{
+		ID:            requirementID,
+		RoleID:        roleID,
+		CapabilityID:  capability.ID,
+		RequiredLevel: requiredLevel,
+	}, nil
+}
+
 func (s SQLStore) AddIndicator(ctx context.Context, organisationID, versionID, capabilityID string, level int, statement string) (Indicator, error) {
 	if statement == "" || !validLevel(level) {
 		return Indicator{}, ErrInvalid
@@ -269,14 +343,59 @@ func (s SQLStore) Publish(ctx context.Context, organisationID, versionID string)
 			return Version{}, ErrPending
 		}
 	}
-	if err := s.queries.PublishVersion(ctx, db.PublishVersionParams{
+	updated, err := s.queries.PublishVersion(ctx, db.PublishVersionParams{
 		ID:             versionID,
 		OrganisationID: organisationID,
-	}); err != nil {
+	})
+	if err != nil {
 		return Version{}, err
+	}
+	if updated == 0 {
+		return Version{}, ErrImmutable
 	}
 	return s.GetVersion(ctx, organisationID, versionID)
 }
+
+func (s SQLStore) PublishWithEvent(ctx context.Context, organisationID, versionID string, event OutboxEvent) (Version, error) {
+	if err := acceptedPublication(event, organisationID, versionID); err != nil {
+		return Version{}, err
+	}
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Version{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txStore := SQLStore{database: s.database, queries: s.queries.WithTx(tx)}
+	version, err := txStore.Publish(ctx, organisationID, versionID)
+	if err != nil {
+		return Version{}, err
+	}
+	if _, err := tx.ExecContext(ctx, insertOutboxEvent,
+		event.ID,
+		event.EventType,
+		event.SchemaVersion,
+		event.AggregateID,
+		event.OccurredAt,
+		event.CorrelationID,
+		string(event.Payload),
+		event.OccurredAt,
+		event.OccurredAt,
+	); err != nil {
+		return Version{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Version{}, err
+	}
+	return version, nil
+}
+
+const insertOutboxEvent = `
+INSERT INTO outbox_events (
+    id, event_type, schema_version, aggregate_id, occurred_at, correlation_id,
+    payload, status, attempts, next_attempt_at, last_error, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 0, $8, '', $9
+)`
 
 func (s SQLStore) CreateNextDraft(ctx context.Context, organisationID, versionID string) (Version, error) {
 	source, err := s.GetVersion(ctx, organisationID, versionID)

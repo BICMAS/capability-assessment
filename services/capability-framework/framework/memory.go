@@ -8,6 +8,7 @@ import (
 type Memory struct {
 	mu       sync.Mutex
 	versions []Version
+	outbox   []OutboxEvent
 }
 
 func NewMemory() *Memory {
@@ -111,6 +112,49 @@ func (m *Memory) AddCapability(_ context.Context, organisationID, versionID, nam
 	capability := Capability{ID: id, Name: name, Levels: []ProficiencyLevel{}}
 	m.versions[index].Capabilities = append(m.versions[index].Capabilities, capability)
 	return cloneCapability(capability), nil
+}
+
+func (m *Memory) AddRoleCapability(_ context.Context, organisationID, versionID, roleID, name string, requiredLevel int) (Capability, Requirement, error) {
+	if name == "" || !validLevel(requiredLevel) {
+		return Capability{}, Requirement{}, ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	index, err := m.editable(organisationID, versionID)
+	if err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	if !m.hasRole(index, roleID) {
+		return Capability{}, Requirement{}, ErrNotFound
+	}
+	capability := Capability{}
+	for _, existing := range m.versions[index].Capabilities {
+		if existing.Name == name {
+			capability = cloneCapability(existing)
+			break
+		}
+	}
+	if capability.ID == "" {
+		id, err := newID()
+		if err != nil {
+			return Capability{}, Requirement{}, err
+		}
+		capability = Capability{ID: id, Name: name, Levels: []ProficiencyLevel{}}
+		m.versions[index].Capabilities = append(m.versions[index].Capabilities, capability)
+		capability = cloneCapability(capability)
+	}
+	for _, requirement := range m.versions[index].Requirements {
+		if requirement.RoleID == roleID && requirement.CapabilityID == capability.ID {
+			return capability, requirement, nil
+		}
+	}
+	id, err := newID()
+	if err != nil {
+		return Capability{}, Requirement{}, err
+	}
+	requirement := Requirement{ID: id, RoleID: roleID, CapabilityID: capability.ID, RequiredLevel: requiredLevel}
+	m.versions[index].Requirements = append(m.versions[index].Requirements, requirement)
+	return capability, requirement, nil
 }
 
 func (m *Memory) AddRequirement(_ context.Context, organisationID, versionID, roleID, capabilityID string, requiredLevel int) (Requirement, error) {
@@ -220,6 +264,28 @@ func (m *Memory) PatchRole(_ context.Context, organisationID, versionID, roleID,
 		}
 	}
 	return Version{}, ErrNotFound
+}
+
+func (m *Memory) PublishWithEvent(ctx context.Context, organisationID, versionID string, event OutboxEvent) (Version, error) {
+	if err := acceptedPublication(event, organisationID, versionID); err != nil {
+		return Version{}, err
+	}
+	version, err := m.Publish(ctx, organisationID, versionID)
+	if err != nil {
+		return Version{}, err
+	}
+	m.mu.Lock()
+	m.outbox = append(m.outbox, event)
+	m.mu.Unlock()
+	return version, nil
+}
+
+func (m *Memory) Outbox() []OutboxEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	copied := make([]OutboxEvent, len(m.outbox))
+	copy(copied, m.outbox)
+	return copied
 }
 
 func (m *Memory) Publish(_ context.Context, organisationID, versionID string) (Version, error) {

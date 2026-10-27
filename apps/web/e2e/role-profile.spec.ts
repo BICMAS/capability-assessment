@@ -1,0 +1,30 @@
+import { expect, test } from "@playwright/test";
+
+test("an admin creates a role profile and reaches approval", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Ada/ }).click();
+  await page.getByRole("link", { name: "Role skills profiles" }).click();
+  await page.getByRole("link", { name: "Create a role profile" }).click();
+  await page.getByLabel("Role name").fill("Area Sales Manager");
+  await page.getByRole("button", { name: "Create draft" }).click();
+  await page.getByLabel("Purpose").fill("Own regional revenue and customer relationships");
+  await page.getByLabel("Responsibilities").fill("Lead the sales cycle from qualification through renewal");
+  await page.getByLabel("Business outcomes").fill("Grow retained revenue and new logo acquisition");
+  await page.getByLabel("Decision scope").fill("Approve standard discounts within the published policy");
+  await page.getByLabel("Reporting level").selectOption("manager");
+  await page.getByLabel("Industry").fill("Business services");
+  await page.getByLabel("Region").fill("West Africa");
+  await page.getByLabel("Team size").fill("8");
+  await page.getByRole("button", { name: "Save context" }).click();
+  await page.getByRole("link", { name: /4\. Clarification/ }).click();
+  await page.getByRole("button", { name: "Check for questions" }).click();
+  await page.getByRole("link", { name: /5\. Generation/ }).click();
+  await page.getByRole("button", { name: "Queue generation" }).click();
+  await expect(page.getByTestId("generation-status")).toBeVisible();
+  await page.getByRole("link", { name: /6\. Skills/ }).click();
+  await page.getByRole("link", { name: /7\. Review/ }).click();
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await expect(page.getByText("profile_in_review")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("profile_published")).toBeVisible();
+});

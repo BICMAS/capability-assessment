@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -439,7 +440,7 @@ func SubmitSession(store Store, matcher BandMatcher) http.HandlerFunc {
 	}
 }
 
-func ConfirmSession(store Store, gaps GapRecorder) http.HandlerFunc {
+func ConfirmSession(store Store, gaps GapRecorder, publisher Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := claimsFrom(w, r)
 		if !ok {
@@ -476,11 +477,25 @@ func ConfirmSession(store Store, gaps GapRecorder) http.HandlerFunc {
 			writeStoreError(w, err)
 			return
 		}
+		versionID := assignment.FrameworkVersionID
+		profileVersionID := ""
+		if baselines, ok := store.(interface {
+			ProfileBaseline(context.Context, string, string) (ProfileBaseline, error)
+		}); ok {
+			baseline, baselineErr := baselines.ProfileBaseline(r.Context(), claims.OrganisationID, row.ID)
+			if baselineErr == nil {
+				versionID = baseline.ProfileVersionID
+				profileVersionID = baseline.ProfileVersionID
+			} else if !errors.Is(baselineErr, ErrNotFound) {
+				writeStoreError(w, baselineErr)
+				return
+			}
+		}
 		explanations := make([]openapi.ConfirmedExplanation, 0, len(session.Proposals))
 		for _, proposal := range session.Proposals {
 			recorded, err := gaps.Record(r.Context(), r.Header.Get("Authorization"), GapAttempt{
 				PersonID:           session.PersonID,
-				FrameworkVersionID: assignment.FrameworkVersionID,
+				FrameworkVersionID: versionID,
 				CapabilityCode:     proposal.CapabilityID,
 				Source:             proposal.EvidenceSource,
 				Percentage:         proposal.Percentage,
@@ -497,10 +512,26 @@ func ConfirmSession(store Store, gaps GapRecorder) http.HandlerFunc {
 				Gap:            recorded.Gap,
 			})
 		}
-		confirmed, err := store.MarkSessionConfirmed(r.Context(), claims.OrganisationID, session.ID, time.Now().UTC())
+		confirmedAt := time.Now().UTC()
+		confirmed, err := store.MarkSessionConfirmed(r.Context(), claims.OrganisationID, session.ID, confirmedAt)
 		if err != nil {
 			writeStoreError(w, err)
 			return
+		}
+		if publisher != nil {
+			if err := publisher.PublishAssessmentCompleted(r.Context(), AssessmentCompleted{
+				Type:             "assessment.completed",
+				OrganisationID:   claims.OrganisationID,
+				PersonID:         session.PersonID,
+				SessionID:        session.ID,
+				PlanID:           session.PlanID,
+				ActorPersonID:    claims.PersonID,
+				ProfileVersionID: profileVersionID,
+				OccurredAt:       confirmedAt.Format(time.RFC3339),
+			}); err != nil {
+				writeStoreError(w, err)
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, openapi.SessionConfirmation{
 			Session:      sessionJSON(confirmed, true),
@@ -709,8 +740,10 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRoleNotOnVersion):
 		writeError(w, http.StatusBadRequest)
-	case errors.Is(err, ErrImmutable), errors.Is(err, ErrNotPublished), errors.Is(err, ErrAlreadyGenerated), errors.Is(err, ErrNotEditable), errors.Is(err, ErrNotApproved):
+	case errors.Is(err, ErrImmutable), errors.Is(err, ErrNotPublished), errors.Is(err, ErrProfileUnpublished), errors.Is(err, ErrRolePeriod), errors.Is(err, ErrAlreadyGenerated), errors.Is(err, ErrNotEditable), errors.Is(err, ErrNotApproved):
 		writeError(w, http.StatusConflict)
+	case errors.Is(err, ErrForbidden):
+		writeError(w, http.StatusForbidden)
 	case errors.Is(err, ErrProvider):
 		writeError(w, http.StatusServiceUnavailable)
 	case errors.Is(err, ErrUpstream):

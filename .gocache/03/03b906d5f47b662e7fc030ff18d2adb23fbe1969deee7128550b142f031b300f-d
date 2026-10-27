@@ -1,0 +1,9 @@
+./calculate.go
+./fold.go
+./http.go
+./id.go
+./memory.go
+./model.go
+./router.go
+./sql_store.go
+./tenths.go

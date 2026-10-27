@@ -1,0 +1,10 @@
+{
+  "type": "assessment.assigned",
+  "organisationId": "8f0c2d44-6a1e-4b7a-9c3d-1e5f7a9b0c21",
+  "personId": "7d2b6f18-9c40-4e15-8a73-5b1d0e6f4a22",
+  "assignmentId": "2b3c4d5e-6f70-8192-a3b4-c5d6e7f80910",
+  "actorPersonId": "7d2b6f18-9c40-4e15-8a73-5b1d0e6f4a22",
+  "frameworkVersionId": "3a1c9e70-2d48-4f16-8b95-0c7e4a1d2f33",
+  "roleId": "4d5e6f70-8192-a3b4-c5d6-e7f8091a2b3c",
+  "occurredAt": "2026-10-11T18:00:00Z"
+}

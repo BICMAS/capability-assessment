@@ -1,0 +1,7 @@
+./comparison.go
+./doc.go
+./filter.go
+./filter_parser.go
+./lexer.go
+./path.go
+./slicer.go

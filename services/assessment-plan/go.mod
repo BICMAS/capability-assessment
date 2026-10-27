@@ -3,6 +3,7 @@ module github.com/bicmas-academy/learn/services/assessment-plan
 go 1.27
 
 require (
+	github.com/bicmas-academy/learn/services/httpserver v0.0.0
 	github.com/bicmas-academy/learn/services/assessment-gap v0.0.0
 	github.com/bicmas-academy/learn/services/token v0.0.0
 	github.com/go-chi/chi/v5 v5.2.3
@@ -31,3 +32,5 @@ require (
 replace github.com/bicmas-academy/learn/services/assessment-gap => ../assessment-gap
 
 replace github.com/bicmas-academy/learn/services/token => ../token
+
+replace github.com/bicmas-academy/learn/services/httpserver => ../httpserver

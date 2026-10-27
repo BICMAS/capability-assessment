@@ -80,7 +80,7 @@ func TestApprovedPlanStaysUnchanged(t *testing.T) {
 
 func TestHealthDoesNotCreateRecords(t *testing.T) {
 	store := &countingStore{}
-	handler := NewRouter(func(context.Context) error { return nil }, []byte(httpSecret), store, nil, nil, nil, nil, nil, nil)
+	handler := NewRouter(func(context.Context) error { return nil }, []byte(httpSecret), store, nil, nil, nil, nil, nil, nil, ProfileBridge{})
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -113,7 +113,7 @@ func TestReplaceApprovedPlanConflicts(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPut, "/plans/"+created.ID, bytes.NewReader(payload))
 	request.Header.Set("Authorization", "Bearer "+sign(t, mayaClaims()))
 	response := httptest.NewRecorder()
-	NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, nil, nil).ServeHTTP(response, request)
+	NewRouter(nil, []byte(httpSecret), store, nil, nil, nil, nil, nil, nil, ProfileBridge{}).ServeHTTP(response, request)
 	if response.Code != http.StatusConflict {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}

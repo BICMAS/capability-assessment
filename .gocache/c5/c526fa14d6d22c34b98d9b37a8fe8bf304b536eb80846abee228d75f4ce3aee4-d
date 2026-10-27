@@ -1,0 +1,3 @@
+./aggregates.go
+./iterator.go
+./predicates.go

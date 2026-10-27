@@ -23,11 +23,7 @@ func TestPublishedVersionStaysUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capability, err := store.AddCapability(ctx, organisationID, draft.ID, "Negotiation")
-	if err != nil {
-		t.Fatal(err)
-	}
-	requirement, err := store.AddRequirement(ctx, organisationID, draft.ID, role.ID, capability.ID, 4)
+	capability, requirement, err := store.AddRoleCapability(ctx, organisationID, draft.ID, role.ID, "Negotiation", 4)
 	if err != nil {
 		t.Fatal(err)
 	}

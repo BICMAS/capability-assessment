@@ -1,0 +1,14 @@
+title = "BICMAS Learn"
+
+[allowlist]
+description = "Local development placeholders and public contract fixtures"
+paths = [
+  '''\.env\.example$''',
+  '''contracts/events/examples/.*''',
+  '''docs/.*''',
+]
+regexes = [
+  '''dev-only-not-a-production-secret''',
+  '''dev-only-webhook-not-a-production-secret''',
+  '''bicmas-local-dev''',
+]

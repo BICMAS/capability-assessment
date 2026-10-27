@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bicmas:learn:event:person.signed_in",
+  "title": "person.signed_in",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "personId", "organisationId", "occurredAt"],
+  "properties": {
+    "type": { "const": "person.signed_in" },
+    "personId": { "type": "string", "minLength": 1 },
+    "organisationId": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}
