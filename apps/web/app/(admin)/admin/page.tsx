@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { EmptyState, StatusMessage } from "@/components/ui/status-message";
@@ -79,12 +78,27 @@ export default async function AdminPage({
 
   return (
     <div className="studio-page">
-      <p>
-        <Link className="learn-link" href="/admin/role-profiles">
-          Role skills profiles
-        </Link>
-      </p>
-      <section className="studio-region">
+      <section className="portal-home" aria-label="What needs you today">
+        <p className="portal-lead">What needs you today</p>
+        <div className="portal-cards">
+          <a href="#frameworks">
+            <span>Frameworks</span>
+            <strong>{versions.ok ? versionList.length : "—"}</strong>
+            <span>{versions.ok ? "Open the editor" : versions.error}</span>
+          </a>
+          <a href="#assignments">
+            <span>Assignments</span>
+            <strong>{versions.ok ? published.length : "—"}</strong>
+            <span>{versions.ok ? "Published versions ready to assign" : versions.error}</span>
+          </a>
+          <a href="#plans">
+            <span>Plans</span>
+            <strong>{assessment.assignment ? "Open" : "None"}</strong>
+            <span>{assessment.assignment ? `${personName} is selected` : "Confirm an assignment to generate a plan."}</span>
+          </a>
+        </div>
+      </section>
+      <section className="studio-region" id="frameworks">
         <header className="studio-step">
           <h2>Frameworks</h2>
           <p className="studio-step-status">{versions.ok ? frameworkStatus(versionList) : versions.error}</p>

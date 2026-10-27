@@ -32,7 +32,8 @@ export function TeamRow({
     <a className="team-row" href={`/manager/people/${personId}`}>
       <span className="team-identity">
         <span className="team-name">{personName}</span>
-        <span className="team-role">{roles.join(", ")}</span>
+        <span className="team-role">{roles.join(", ") || "No role recorded"}</span>
+        <span className="team-summary">{belowLabel(developing.length + priority.length)}</span>
       </span>
       <span className="team-bands">
         <Band label="Strengths" tone="band-strength" items={strengths} />
@@ -163,6 +164,16 @@ function gapTone(gap: string): string {
     return "tone-gap";
   }
   return "";
+}
+
+function belowLabel(count: number): string {
+  if (count === 0) {
+    return "No capabilities below the required level";
+  }
+  if (count === 1) {
+    return "1 capability below the required level";
+  }
+  return `${count} capabilities below the required level`;
 }
 
 function gapBand(gap: string): "strength" | "developing" | "priority" {

@@ -261,24 +261,26 @@ input[type="file"]::file-selector-button {
 
 .app {
   display: grid;
-  grid-template-columns: var(--nav-width) minmax(0, var(--main-max));
-  justify-content: start;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
   min-height: 100vh;
+  background: var(--field);
 }
 
 .nav {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 1.5rem;
-  padding: 1.5rem 1rem 1.5rem;
-  border-right: 1px solid var(--hairline);
-  background: var(--card);
+  gap: 1.75rem;
+  padding: 1.5rem 1rem;
+  background: #fff;
+  border-right: 0;
+  box-shadow: 1px 0 0 rgba(28, 25, 20, 0.06);
 }
 
 .nav-brand {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  padding: 0 0.65rem;
 }
 
 .mark {
@@ -286,45 +288,71 @@ input[type="file"]::file-selector-button {
   font-size: 1.45rem;
 }
 
-.nav .mark {
+.nav .mark,
+.nav-product {
+  margin: 0;
   font-family: var(--type-interface);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.nav-product {
+  letter-spacing: -0.03em;
+  text-transform: none;
+  font-family: var(--type-display);
+  font-size: 1.7rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.nav-links {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .nav a {
   text-decoration: none;
   font-size: 0.95rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
 }
 
 .nav a[aria-current="page"] {
-  font-weight: 600;
-  box-shadow: inset 0 -1px 0 var(--ink);
-  width: fit-content;
+  font-weight: 650;
+  background: #e7f7cf;
+  color: #14301c;
+  box-shadow: none;
+  width: auto;
 }
 
 .nav-session {
+  display: grid;
+  gap: 0.65rem;
   margin-top: auto;
+  padding: 0 0.35rem;
 }
 
 .nav-session button {
   width: 100%;
-  text-align: left;
+  text-align: center;
+  border-radius: 999px;
+  border-color: #d5ddd0;
+  background: #fff;
 }
 
 .nav-name {
   margin: 0;
   font-family: var(--type-interface);
-  font-size: 1.05rem;
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 600;
   line-height: 1.2;
 }
 
 .main {
   max-width: var(--main-max);
-  padding: 2.5rem 2.5rem 2.5rem;
+  padding: 2.5rem 2.5rem 3rem;
   min-width: 0;
 }
 
@@ -332,18 +360,96 @@ input[type="file"]::file-selector-button {
   margin: 0 0 0.5rem;
   font-family: var(--type-interface);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--accent);
 }
 
 .main > h1 {
   font-family: var(--type-display);
-  font-size: clamp(3rem, 5vw, 4.4rem);
-  font-weight: 460;
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  font-weight: 500;
   letter-spacing: -0.035em;
-  line-height: 0.9;
-  margin: 0 0 2.5rem;
+  line-height: 0.95;
+  margin: 0 0 1.75rem;
+}
+
+.app button.primary {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #f6f8f3;
+}
+
+.app button.primary:hover {
+  background: #245734;
+  color: #f6f8f3;
+}
+
+.portal-home,
+.portal-intro {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.portal-lead {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.portal-note {
+  margin: 0;
+  color: #5c6558;
+}
+
+.portal-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.portal-cards a {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  min-height: 8.5rem;
+  padding: 1.25rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06);
+  text-decoration: none;
+}
+
+.portal-cards a:hover {
+  box-shadow: 0 14px 34px rgba(28, 25, 20, 0.1);
+}
+
+.portal-cards strong {
+  font-family: var(--type-display);
+  font-size: 2rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.status-pill {
+  display: inline-block;
+  width: fit-content;
+  margin: 0 0 1rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: #e7f7cf;
+  color: #14301c;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.team-summary {
+  display: block;
+  margin-top: 0.45rem;
+  color: #5c6558;
+  font-size: 0.92rem;
 }
 
 .directory {
@@ -538,10 +644,18 @@ input[type="file"]::file-selector-button {
   margin-bottom: 2.5rem;
 }
 
+.correspondence,
+.primary-capability,
+.capability-figures,
+.team-board {
+  background: #fff;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06);
+}
+
 .correspondence {
-  background: var(--card);
-  border: 1px solid var(--hairline);
-  padding: 1.5rem 1.5rem 1.5rem;
+  padding: 1.5rem;
 }
 
 .correspondence-status {
@@ -860,7 +974,7 @@ input[type="file"]::file-selector-button {
 
 .studio-page {
   display: grid;
-  gap: 2.5rem;
+  gap: 1.25rem;
   min-width: 0;
 }
 
@@ -887,6 +1001,13 @@ input[type="file"]::file-selector-button {
 
 .studio-step-status.is-error {
   color: var(--copper);
+}
+
+.studio-region {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06);
+  padding: 1.5rem;
 }
 
 .studio-region > h2 {
@@ -930,7 +1051,7 @@ input[type="file"]::file-selector-button {
 .capability-figures,
 .primary-capability,
 .correspondence {
-  border-radius: 0;
+  border-radius: 16px;
 }
 
 .studio-tool,
@@ -1252,8 +1373,7 @@ input[type="file"]::file-selector-button {
   list-style: none;
   margin: 0;
   padding: 0;
-  background: var(--card);
-  border: 1px solid var(--hairline);
+  overflow: hidden;
 }
 
 .team-row {
@@ -1261,7 +1381,7 @@ input[type="file"]::file-selector-button {
   grid-template-columns: minmax(13rem, 0.8fr) minmax(0, 1.7fr);
   gap: 1rem 2.5rem;
   align-items: start;
-  padding: 1.5rem 1.5rem 1.5rem;
+  padding: 1.5rem;
   border-top: 1px solid var(--hairline);
   color: inherit;
   text-decoration: none;
@@ -1385,7 +1505,8 @@ input[type="file"]::file-selector-button {
   .nav {
     min-height: 0;
     border-right: 0;
-    border-bottom: 1px solid var(--hairline);
+    box-shadow: none;
+    border-bottom: 1px solid rgba(28, 25, 20, 0.06);
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
@@ -1398,15 +1519,23 @@ input[type="file"]::file-selector-button {
     display: flex;
     align-items: baseline;
     gap: 0.75rem;
+    padding: 0;
+  }
+
+  .nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
 
   .nav-name {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .nav-session {
     margin-top: 0;
     margin-left: auto;
+    padding: 0;
   }
 
   .nav-session button {
@@ -1423,7 +1552,8 @@ input[type="file"]::file-selector-button {
     margin-bottom: 1.5rem;
   }
 
-  .metrics {
+  .metrics,
+  .portal-cards {
     grid-template-columns: 1fr;
   }
 

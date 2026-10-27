@@ -35,17 +35,18 @@ export default async function EmployeePage({
 
   return (
     <>
-      <h2 className="briefing-heading">
-        {roleLine ? <span className="briefing-role">{roleLine}</span> : null}
-        {roleLine && frameworkLine ? <span className="briefing-mark" aria-hidden="true" /> : null}
-        {frameworkLine ? <span className="briefing-framework">{frameworkLine}</span> : null}
-      </h2>
+      <header className="portal-intro">
+        <p className="portal-lead">{profile.name}</p>
+        <p>{roleLine || "No role is recorded yet."}</p>
+        {frameworkLine ? <p className="portal-note">{frameworkLine}</p> : null}
+        {ownSessions.some((session) => session.status !== "submitted") ? <p className="portal-note">An assessment is waiting.</p> : null}
+      </header>
       {ownSessions.length > 0 ? (
         <section className="briefing-session">
           {params.sessionError ? <p className="login-error">{params.sessionError}</p> : null}
           {ownSessions.map((session) => (
             <article key={session.id} className="correspondence">
-              <p className="correspondence-status">{session.status}</p>
+              <p className="status-pill">{sessionLabel(session.status)}</p>
               {session.status === "submitted" && session.confirmed
                 ? (session.proposals ?? []).map((proposal) => (
                     <p key={proposal.capabilityId} className="provisional">
@@ -95,6 +96,19 @@ export default async function EmployeePage({
       </div>
     </>
   );
+}
+
+function sessionLabel(status: string): string {
+  switch (status) {
+    case "assigned":
+      return "Assigned";
+    case "started":
+      return "In progress";
+    case "submitted":
+      return "Submitted";
+    default:
+      return status;
+  }
 }
 
 function proposalLabel(source: string): string {
