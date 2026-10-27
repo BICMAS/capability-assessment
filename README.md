@@ -55,4 +55,4 @@ make ci-integration
 
 Details: `docs/ci.md`. Migration and rollout safety: `docs/release-safety.md`. Publication events: `docs/transactional-outbox.md`.
 
-Toolchain pins: Go version from `go.work` (currently **1.27**), Node from `apps/web/.nvmrc` (**20**). Do not silently downgrade either.
+Toolchain pins: Go version from `go.work` (currently **1.27**), Node from `apps/web/.nvmrc` (**24**). Do not silently downgrade either.
