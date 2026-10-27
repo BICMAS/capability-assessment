@@ -2,6 +2,7 @@ FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY services/token /src/services/token
+COPY services/httpserver /src/services/httpserver
 COPY services/org-directory /src/services/org-directory
 WORKDIR /src/services/org-directory
 RUN go mod download

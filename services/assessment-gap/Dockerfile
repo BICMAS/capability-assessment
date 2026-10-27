@@ -2,6 +2,7 @@ FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY services/token /src/services/token
+COPY services/httpserver /src/services/httpserver
 COPY services/assessment-gap /src/services/assessment-gap
 
 WORKDIR /src/services/assessment-gap

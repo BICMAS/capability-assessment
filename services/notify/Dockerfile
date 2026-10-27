@@ -2,6 +2,7 @@ FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY services/token /src/services/token
+COPY services/httpserver /src/services/httpserver
 COPY services/notify /src/services/notify
 WORKDIR /src/services/notify
 RUN go mod download

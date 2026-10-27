@@ -2,6 +2,7 @@ FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY services/token /src/services/token
+COPY services/httpserver /src/services/httpserver
 COPY services/capability-framework /src/services/capability-framework
 WORKDIR /src/services/capability-framework
 RUN go mod download

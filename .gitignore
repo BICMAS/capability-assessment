@@ -10,3 +10,23 @@ artifacts/
 scripts/ci/node_modules/
 scripts/ci/package.json
 scripts/ci/package-lock.json
+
+# Next.js local secrets (.env does not match these)
+.env*.local
+
+# Word lock file while a document is open
+~$*
+
+# Playwright, once e2e is run
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Go test and coverage output
+*.out
+*.exe
+*.test
+coverage/
+
+BICMAS-Learn-How-to-use.docx
