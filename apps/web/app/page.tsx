@@ -7,27 +7,32 @@ export default async function LoginPage({
 
   return (
     <main className="entrance">
-      <div className="entrance-title">
-        <p className="mark">BICMAS</p>
-        <h1>Learn</h1>
-        <p className="entrance-line">AI coaches. Managers develop. People perform.</p>
-      </div>
-      <section className="entrance-card">
-        {params.error ? <p className="login-error">Sign-in failed.</p> : null}
-        <form className="entrance-choices" action="/session" method="post">
-          <button type="submit" name="person" value="ada">
-            <span className="entrance-name">Ada</span>
-            <span className="entrance-role">Framework admin</span>
-          </button>
-          <button type="submit" name="person" value="eli">
-            <span className="entrance-name">Eli</span>
-            <span className="entrance-role">Employee</span>
-          </button>
-          <button type="submit" name="person" value="maya">
-            <span className="entrance-name">Maya</span>
-            <span className="entrance-role">Line manager</span>
-          </button>
-        </form>
+      <section className="entrance-frame">
+        <div className="entrance-panel">
+          <p className="mark">BICMAS</p>
+          <h1>Learn</h1>
+          <p className="entrance-line">AI coaches. Managers develop. People perform.</p>
+        </div>
+        <section className="entrance-card">
+          <p className="mark">BICMAS</p>
+          <h2>Log in</h2>
+          {params.error ? <p className="login-error">Sign-in failed.</p> : null}
+          <form className="entrance-form" action="/session" method="post" noValidate>
+            <label htmlFor="email">Email address</label>
+            <input id="email" name="email" type="email" autoComplete="username" />
+            <label htmlFor="password">Password</label>
+            <input id="password" name="password" type="password" autoComplete="current-password" />
+            <button className="entrance-submit" type="submit">
+              Log in
+            </button>
+          </form>
+          <p className="entrance-demo">New here? Use a demo account.</p>
+          <ul className="entrance-accounts">
+            <li>ada@bicmas.learn · Framework admin</li>
+            <li>eli@bicmas.learn · Employee</li>
+            <li>maya@bicmas.learn · Line manager</li>
+          </ul>
+        </section>
       </section>
     </main>
   );

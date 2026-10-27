@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test("an admin creates a role profile and reaches approval", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Ada/ }).click();
+  await page.getByLabel("Email address").fill("ada@bicmas.learn");
+  await page.getByLabel("Password").fill("demo");
+  await page.getByRole("button", { name: "Log in" }).click();
   await page.getByRole("link", { name: "Role skills profiles" }).click();
   await page.getByRole("link", { name: "Create a role profile" }).click();
   await page.getByLabel("Role name").fill("Area Sales Manager");

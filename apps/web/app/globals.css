@@ -113,16 +113,31 @@ input[type="file"]::file-selector-button {
 .entrance {
   min-height: 100vh;
   display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 2.5rem;
-  padding: 2.5rem 1.5rem;
-  background: var(--field);
+  place-items: center;
+  padding: 2rem 1.25rem;
+  background: #d7efb8;
 }
 
-.entrance-title,
-.entrance-card {
-  width: min(100%, 44rem);
+.entrance-frame {
+  width: min(100%, 68rem);
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  background: #171717;
+  border: 0.7rem solid #171717;
+  border-radius: 2.4rem;
+  box-shadow: 0 1.6rem 3.5rem rgba(36, 58, 18, 0.18);
+  overflow: hidden;
+}
+
+.entrance-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 36rem;
+  padding: 2.5rem;
+  background: #e7f7cf;
+  border-bottom: 5.5rem solid #2f6a3c;
+  color: #14301c;
 }
 
 .entrance .mark {
@@ -136,69 +151,92 @@ input[type="file"]::file-selector-button {
 
 .entrance h1 {
   font-family: var(--type-display);
-  font-size: clamp(5.5rem, 14vw, 8.5rem);
+  font-size: clamp(4.5rem, 8vw, 7rem);
   font-weight: 460;
   line-height: 0.82;
   letter-spacing: -0.035em;
   margin: 0;
-}
-
-.entrance-card {
-  background: var(--card);
-  border: 1px solid var(--hairline);
-  border-radius: 0;
-  padding: 1.5rem;
+  color: #14301c;
 }
 
 .entrance-line {
   margin: 1rem 0 0;
-  max-width: 36rem;
+  max-width: 18rem;
   font-size: 1.05rem;
   line-height: 1.5;
 }
 
-.entrance-choices {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+.entrance-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0.35rem;
+  padding: 2.4rem 2rem;
+  background: #fff;
+  border: 0;
+  border-radius: 1.7rem;
+  color: #1c1914;
 }
 
-.entrance-choices button {
-  display: grid;
-  align-content: end;
-  gap: 0.5rem;
-  min-height: 9.5rem;
-  padding: 1rem 1rem 1rem;
-  text-align: left;
-  background: var(--field);
-  border: 1px solid transparent;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.entrance-choices button:hover {
-  background: var(--card);
-  border-color: var(--hairline);
-}
-
-.entrance-choices button:focus,
-.entrance-choices button:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
-}
-
-.entrance-name {
+.entrance-card h2 {
+  margin: 0 0 1.4rem;
   font-family: var(--type-interface);
-  font-size: 2.15rem;
-  font-weight: 500;
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  font-weight: 650;
   letter-spacing: -0.03em;
-  line-height: 1;
 }
 
-.entrance-role {
-  font-family: var(--type-interface);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.entrance-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.entrance-form label {
+  margin-bottom: -0.35rem;
+  font-size: 0.82rem;
+}
+
+.entrance .entrance-form input[type="email"],
+.entrance .entrance-form input[type="password"] {
+  width: 100%;
+  border: 1px solid #d7d7d7;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.85rem 1.1rem;
+}
+
+.entrance-submit {
+  margin-top: 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: #8ed14a;
+  color: #173016;
+  font-weight: 650;
+  padding: 0.9rem 1.2rem;
+}
+
+.entrance-submit:hover {
+  background: #7bc43d;
+  color: #173016;
+}
+
+.entrance-demo {
+  margin: 1.4rem 0 0.4rem;
+  text-align: center;
+}
+
+.entrance-accounts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+  color: #5c6558;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.entrance .login-error {
+  margin: 0 0 0.85rem;
 }
 
 .login-error,
@@ -1385,28 +1423,31 @@ input[type="file"]::file-selector-button {
     margin-bottom: 1.5rem;
   }
 
-  .metrics,
-  .entrance-choices {
+  .metrics {
     grid-template-columns: 1fr;
   }
 
   .entrance {
-    align-content: center;
-    gap: 2.5rem;
-    padding: 2.5rem 1rem;
+    padding: 1rem;
+  }
+
+  .entrance-frame {
+    grid-template-columns: 1fr;
+  }
+
+  .entrance-panel {
+    min-height: 0;
+    padding: 1.75rem 1.5rem 1.5rem;
+    border-bottom-width: 2.5rem;
   }
 
   .entrance h1 {
-    font-size: clamp(4.6rem, 22vw, 5.75rem);
+    font-size: clamp(3.4rem, 18vw, 4.8rem);
   }
 
-  .entrance-choices button {
-    min-height: 0;
-    grid-template-columns: 1fr auto;
-    align-items: baseline;
-    align-content: center;
-    gap: 0.75rem;
-    padding: 1rem 1rem;
+  .entrance-card {
+    margin: 0;
+    border-radius: 1.3rem;
   }
 
   .briefing-heading {
@@ -1455,7 +1496,6 @@ input[type="file"]::file-selector-button {
 
   .primary-capability,
   .correspondence,
-  .entrance-card,
   .studio-tool,
   .studio-version,
   .capability-figures,
