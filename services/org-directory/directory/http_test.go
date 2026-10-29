@@ -69,6 +69,57 @@ func TestManagerListsOnlyManagedPeople(t *testing.T) {
 	}
 }
 
+func TestOrganogramPositionsStayInsideTheOrganisation(t *testing.T) {
+	store := seeded()
+	router := NewRouter(nil, []byte(secret), store, &recordingPublisher{})
+	hr := token.Claims{PersonID: adaID, OrganisationID: organisationID, Roles: []string{"hr"}, ManagerOf: []string{}}
+	body := bytes.NewBufferString(`{"name":"BICMAS sales"}`)
+	request := httptest.NewRequest(http.MethodPost, "/organograms", body)
+	request.Header.Set("Authorization", "Bearer "+sign(t, hr))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create organogram = %d %s", response.Code, response.Body.String())
+	}
+	var organogram Organogram
+	if err := json.Unmarshal(response.Body.Bytes(), &organogram); err != nil {
+		t.Fatal(err)
+	}
+
+	employee := token.Claims{PersonID: eliID, OrganisationID: organisationID, Roles: []string{"employee"}, ManagerOf: []string{}}
+	denied := httptest.NewRequest(http.MethodGet, "/organograms", nil)
+	denied.Header.Set("Authorization", "Bearer "+sign(t, employee))
+	deniedResponse := httptest.NewRecorder()
+	router.ServeHTTP(deniedResponse, denied)
+	if deniedResponse.Code != http.StatusForbidden {
+		t.Fatalf("employee organogram = %d", deniedResponse.Code)
+	}
+
+	positionBody := bytes.NewBufferString(`{"departmentId":"c4e8a1b2-7d63-4f90-8a15-2b6c9d0e3f71","title":"Area Sales Manager","personId":"` + eliID + `"}`)
+	positionRequest := httptest.NewRequest(http.MethodPost, "/organograms/"+organogram.ID+"/positions", positionBody)
+	positionRequest.Header.Set("Authorization", "Bearer "+sign(t, hr))
+	positionResponse := httptest.NewRecorder()
+	router.ServeHTTP(positionResponse, positionRequest)
+	if positionResponse.Code != http.StatusCreated {
+		t.Fatalf("position = %d %s", positionResponse.Code, positionResponse.Body.String())
+	}
+
+	unknown := bytes.NewBufferString(`{"title":"Vacant lead","departmentId":"missing-department"}`)
+	unknownRequest := httptest.NewRequest(http.MethodPost, "/organograms/"+organogram.ID+"/positions", unknown)
+	unknownRequest.Header.Set("Authorization", "Bearer "+sign(t, hr))
+	unknownResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownResponse, unknownRequest)
+	if unknownResponse.Code != http.StatusBadRequest {
+		t.Fatalf("unknown department = %d", unknownResponse.Code)
+	}
+
+	manager := token.Claims{PersonID: mayaID, OrganisationID: organisationID, Roles: []string{"manager"}, ManagerOf: []string{eliID}}
+	positions := getJSON(t, router, "/organograms/"+organogram.ID+"/positions", manager)
+	if len(positions) != 1 || positions[0]["title"] != "Area Sales Manager" || positions[0]["personId"] != eliID {
+		t.Fatalf("positions = %#v", positions)
+	}
+}
+
 func TestEmployeeCannotReadAnotherProfile(t *testing.T) {
 	router := NewRouter(nil, []byte(secret), seeded(), &recordingPublisher{})
 	request := httptest.NewRequest(http.MethodGet, "/people/"+mayaID, nil)

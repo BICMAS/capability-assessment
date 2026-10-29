@@ -29,9 +29,11 @@ type scriptProvider struct {
 	mu           sync.Mutex
 	model        string
 	clarify      []QuestionDraft
+	clarifyErr   error
 	clarifyCalls int
 	responses    []scriptResponse
 	calls        int
+	lastInput    GenerationInput
 	started      chan struct{}
 }
 
@@ -41,12 +43,16 @@ func (p *scriptProvider) Clarify(context.Context, ContextSnapshot, []string) ([]
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.clarifyCalls++
+	if p.clarifyErr != nil {
+		return nil, p.clarifyErr
+	}
 	return append([]QuestionDraft{}, p.clarify...), nil
 }
 
-func (p *scriptProvider) Generate(ctx context.Context, _ GenerationInput) (ProviderResult, error) {
+func (p *scriptProvider) Generate(ctx context.Context, input GenerationInput) (ProviderResult, error) {
 	p.mu.Lock()
 	p.calls++
+	p.lastInput = input
 	index := p.calls
 	var response scriptResponse
 	if len(p.responses) == 0 {
@@ -140,7 +146,7 @@ func newProfileFixture(t *testing.T, limits Limits, responses []scriptResponse) 
 
 func validGeneration(fx profileFixture) []byte {
 	raw, _ := json.Marshal(generatedOutput{Skills: []GeneratedSkill{
-		{SkillID: fx.technical.ID, Kind: KindTechnical, Definition: "Plans the territory for this role", RequiredProficiency: 3, Priority: PriorityRequired, Rationale: "The role owns coverage"},
+		{SkillID: fx.technical.ID, Kind: KindTechnical, Definition: "Plans the territory for this role", RequiredProficiency: 3, Priority: PriorityRequired, Rationale: "The role owns coverage", Criteria: "Review a territory plan for this role"},
 		{SkillID: fx.behaviour.ID, Kind: KindBehavioural, Definition: "Coaches sellers in this role", RequiredProficiency: 2, Priority: PriorityPreferred, Rationale: "The role leads a team"},
 		{SkillID: fx.knowledge.ID, Kind: KindKnowledge, Definition: "Applies the pricing policy", RequiredProficiency: 3, Priority: PriorityRequired, Rationale: "The role approves discounts"},
 	}})
@@ -257,7 +263,7 @@ func TestUnknownAnswerIsFlaggedInsteadOfInvented(t *testing.T) {
 			t.Fatal("invalid reporting was stored")
 		}
 	}
-	_, err = workflow.Enqueue(ctx, "org-a", profile.Version.ID, "person-1", "idem-key-1", current.ContextVersion)
+	_, err = workflow.Enqueue(ctx, "org-a", profile.Version.ID, "person-1", "idem-key-1", current.ContextVersion, false)
 	if !errors.Is(err, ErrUnresolved) {
 		t.Fatalf("enqueue = %v", err)
 	}
@@ -308,14 +314,14 @@ func TestGenerationValidatesPersistsAndPreservesTheDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fx.provider.callCount() != 0 || job.Status != JobQueued || job.ID == "" {
 		t.Fatalf("job = %#v calls %d", job, fx.provider.callCount())
 	}
-	duplicate, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	duplicate, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil || duplicate.ID != job.ID {
 		t.Fatalf("duplicate = %#v %v", duplicate, err)
 	}
@@ -347,6 +353,20 @@ func TestGenerationValidatesPersistsAndPreservesTheDraft(t *testing.T) {
 	if categories[fx.technical.ID] != CategoryTechnical || categories[fx.behaviour.ID] != CategoryLeadership || categories[fx.knowledge.ID] != CategoryDomain {
 		t.Fatalf("categories = %#v", categories)
 	}
+	fx.provider.mu.Lock()
+	roleName := fx.provider.lastInput.RoleName
+	fx.provider.mu.Unlock()
+	if roleName != "Area Sales Manager" || ProficiencyLabel(2) != "Intermediate" {
+		t.Fatalf("role = %q", roleName)
+	}
+	for _, skill := range version.Skills {
+		if skill.CreatedAt.IsZero() || skill.UpdatedAt.IsZero() || skill.Position < 1 {
+			t.Fatalf("skill record = %#v", skill)
+		}
+		if skill.SkillID == fx.technical.ID && skill.Criteria != "Review a territory plan for this role" {
+			t.Fatalf("criteria = %q", skill.Criteria)
+		}
+	}
 	var preserved GeneratedDraft
 	if err := json.Unmarshal(version.AI.Draft, &preserved); err != nil {
 		t.Fatal(err)
@@ -374,6 +394,7 @@ func TestGenerationRejectsMalformedMissingInvalidAndDuplicateSkills(t *testing.T
 		code string
 	}{
 		{name: "malformed", body: func(profileFixture) []byte { return []byte("{") }, code: "invalid_output"},
+		{name: "unknown", body: func(profileFixture) []byte { return []byte(`{"skills":[],"extra":true}`) }, code: "invalid_output"},
 		{name: "missing", body: func(fx profileFixture) []byte {
 			return []byte(`{"skills":[{"skillId":"` + fx.technical.ID + `","kind":"technical","requiredProficiency":3,"priority":"required","rationale":"Needed"}]}`)
 		}, code: "no_accepted_skills"},
@@ -396,7 +417,7 @@ func TestGenerationRejectsMalformedMissingInvalidAndDuplicateSkills(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+			job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -433,7 +454,7 @@ func TestGenerationRetriesTimeoutsAndRateLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	fx.provider.responses[2].body = validGeneration(fx)
-	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +476,7 @@ func TestGenerationDoesNotAttachAStaleContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,7 +520,7 @@ func TestGenerationRecoversARunningJobAndKeepsManualEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,7 +544,7 @@ func TestGenerationRecoversARunningJobAndKeepsManualEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queued, err := other.workflow.Enqueue(ctx, "org-a", other.version.ID, "person-1", "idem-key-2", session.ContextVersion)
+	queued, err := other.workflow.Enqueue(ctx, "org-a", other.version.ID, "person-1", "idem-key-2", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,7 +575,7 @@ func TestGenerationCanBeCancelledAndRetried(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion)
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -610,10 +631,10 @@ func TestGenerationBudgetAndOutputLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion); err != nil {
+	if _, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-2", session.ContextVersion); !errors.Is(err, ErrBudget) {
+	if _, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-2", session.ContextVersion, false); !errors.Is(err, ErrBudget) {
 		t.Fatalf("budget = %v", err)
 	}
 	fx.workflow.ProcessQueued(ctx)
@@ -688,5 +709,154 @@ func TestHTTPProviderUsesSchemaConstrainedOutputWithoutLeakingTheBody(t *testing
 	}
 	if !strings.Contains(seen, `"type":"json_object"`) || strings.Contains(seen, "test-key") {
 		t.Fatalf("request = %s", seen)
+	}
+}
+
+func TestReplacementKeepsManualSkillsAndEarlierJobs(t *testing.T) {
+	fx := newProfileFixture(t, testLimits(), []scriptResponse{{body: nil}, {body: nil}})
+	fx.provider.responses[0].body = validGeneration(fx)
+	fx.provider.responses[1].body = validGeneration(fx)
+	ctx := context.Background()
+	session, err := fx.workflow.Session(ctx, "org-a", fx.version.ID, "person-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.workflow.ProcessQueued(ctx)
+	repeated, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-1", session.ContextVersion, false)
+	if err != nil || repeated.ID != job.ID || repeated.Status != JobSucceeded {
+		t.Fatalf("repeated = %#v %v", repeated, err)
+	}
+	if _, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-2", session.ContextVersion, false); !errors.Is(err, ErrConflict) {
+		t.Fatalf("silent replace = %v", err)
+	}
+	current, err := fx.store.GetVersion(ctx, "org-a", fx.version.ID)
+	if err != nil || current.Status != StatusDraft || len(current.Skills) != 3 {
+		t.Fatalf("unchanged = %#v %v", current, err)
+	}
+	notes, err := fx.store.CreateSkill(ctx, "org-a", Skill{Name: "Account notes", Category: CategoryCommunication, Definition: "Records account notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	withNotes, err := fx.store.AddSkill(ctx, "org-a", fx.version.ID, "person-1", current.Revision, SkillInput{
+		SkillID: notes.ID, Category: CategoryCommunication, Definition: "Records the account notes for this role", RequiredProficiency: 2, Priority: PriorityOptional, Rationale: "Added by a person", Provenance: ProvenanceManual,
+	})
+	if err != nil || len(withNotes.Skills) != 4 {
+		t.Fatalf("manual = %#v %v", withNotes.Skills, err)
+	}
+	replaced, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-3", session.ContextVersion, true)
+	if err != nil || !replaced.ReplaceExisting {
+		t.Fatalf("replace job = %#v %v", replaced, err)
+	}
+	fx.workflow.ProcessQueued(ctx)
+	finished, err := fx.workflow.GetJob(ctx, "org-a", replaced.ID)
+	if err != nil || finished.Status != JobSucceeded {
+		t.Fatalf("replaced = %#v %v", finished, err)
+	}
+	first, err := fx.workflow.GetJob(ctx, "org-a", job.ID)
+	if err != nil || first.Status != JobSucceeded {
+		t.Fatalf("earlier job = %#v %v", first, err)
+	}
+	saved, err := fx.store.GetVersion(ctx, "org-a", fx.version.ID)
+	if err != nil || saved.Status != StatusDraft {
+		t.Fatalf("draft = %#v %v", saved, err)
+	}
+	ai := 0
+	var manual SkillAssignment
+	for _, skill := range saved.Skills {
+		if skill.Provenance == ProvenanceAISuggested {
+			ai++
+		}
+		if skill.SkillID == notes.ID {
+			manual = skill
+		}
+	}
+	if ai != 3 || len(saved.Skills) != 4 || manual.Provenance != ProvenanceManual {
+		t.Fatalf("skills = %#v", saved.Skills)
+	}
+}
+
+func TestReplacementRefusesAKeptCanonicalSkill(t *testing.T) {
+	fx := newProfileFixture(t, testLimits(), []scriptResponse{{body: nil}})
+	fx.provider.responses[0].body = validGeneration(fx)
+	ctx := context.Background()
+	session, err := fx.workflow.Session(ctx, "org-a", fx.version.ID, "person-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, err := fx.store.AddSkill(ctx, "org-a", fx.version.ID, "person-1", fx.version.Revision, SkillInput{
+		SkillID: fx.technical.ID, Category: CategoryTechnical, Definition: "HR added planning", RequiredProficiency: 2, Priority: PriorityRequired, Rationale: "Added by HR", Provenance: ProvenanceManual,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := fx.workflow.Enqueue(ctx, "org-a", fx.version.ID, "person-1", "idem-key-9", session.ContextVersion, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.workflow.ProcessQueued(ctx)
+	finished, err := fx.workflow.GetJob(ctx, "org-a", job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := fx.store.GetVersion(ctx, "org-a", fx.version.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != JobFailed || finished.LastError != "attach" || len(current.Skills) != 1 || current.Skills[0].Provenance != ProvenanceManual || current.Revision != added.Revision || len(current.AI.Draft) != 0 {
+		t.Fatalf("kept = %#v job %#v", current.Skills, finished)
+	}
+}
+
+func TestEmployeeCannotGenerateAProfile(t *testing.T) {
+	store := NewMemory()
+	claims := token.Claims{PersonID: "person-1", OrganisationID: "org-a", Roles: []string{"employee"}}
+	api := newAPI(store, &claims)
+	denied, _ := api.call(http.MethodPost, "/role-profile-versions/version-1/generation", `{"contextVersion":1,"idempotencyKey":"idem-key-1"}`)
+	if denied != http.StatusForbidden {
+		t.Fatalf("employee generation = %d", denied)
+	}
+	claims.Roles = []string{"manager"}
+	manager, _ := api.call(http.MethodPost, "/role-profile-versions/version-1/generation", `{"contextVersion":1,"idempotencyKey":"idem-key-1"}`)
+	if manager != http.StatusForbidden {
+		t.Fatalf("manager generation = %d", manager)
+	}
+}
+
+func TestSelectProviderRefusesAProductionMock(t *testing.T) {
+	if _, err := SelectProvider("production", "mock", "", "", ""); err == nil {
+		t.Fatal("production mock started")
+	}
+	if _, err := SelectProvider("prod", "mock", "", "", ""); err == nil {
+		t.Fatal("prod mock started")
+	}
+	if _, err := SelectProvider("development", "mock", "secret", "", ""); err == nil {
+		t.Fatal("mock accepted a key")
+	}
+	if provider, err := SelectProvider("development", "", "", "", ""); err != nil || provider != nil {
+		t.Fatalf("missing key = %#v %v", provider, err)
+	}
+	mock, err := SelectProvider("development", "mock", "", "", "")
+	if err != nil || mock.ModelID() != MockModelID {
+		t.Fatalf("mock = %#v %v", mock, err)
+	}
+	result, err := mock.Generate(context.Background(), GenerationInput{
+		RoleName: "Area Sales Manager",
+		Snapshot: ContextSnapshot{Purpose: "Own regional revenue"},
+		Taxonomy: []Skill{{ID: "skill-1", Name: "Territory planning", Category: CategoryTechnical}},
+	})
+	if err != nil || !strings.Contains(string(result.Body), "Development mock suggestion") || !strings.Contains(string(result.Body), "not model output") || strings.Contains(strings.ToLower(string(result.Body)), "gpt") {
+		t.Fatalf("mock body = %s %v", result.Body, err)
+	}
+	questions, err := mock.Clarify(context.Background(), ContextSnapshot{}, []string{"purpose"})
+	if err != nil || len(questions) != 0 {
+		t.Fatalf("mock clarify = %#v %v", questions, err)
+	}
+	live, err := SelectProvider("production", "", "secret", "gpt-4.1-mini", "")
+	if err != nil || live.ModelID() != "gpt-4.1-mini" || live.ModelID() == MockModelID {
+		t.Fatalf("live = %#v %v", live, err)
 	}
 }

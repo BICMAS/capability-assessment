@@ -131,22 +131,27 @@ func (s SQLStore) UpdateContext(ctx context.Context, organisationID, versionID, 
 		return Version{}, ErrInvalid
 	}
 	var version Version
-	err := s.inTx(ctx, func(q *db.Queries) error {
+	err := s.inTxWith(ctx, func(q *db.Queries, tx *sql.Tx) error {
 		if _, err := expectRow(ctx, q, organisationID, versionID, expected, StatusDraft); err != nil {
 			return err
 		}
 		updated, err := q.UpdateRoleProfileContext(ctx, db.UpdateRoleProfileContextParams{
-			ID:               versionID,
-			OrganisationID:   organisationID,
-			Purpose:          strings.TrimSpace(details.Purpose),
-			Responsibilities: strings.TrimSpace(details.Responsibilities),
-			BusinessOutcomes: strings.TrimSpace(details.BusinessOutcomes),
-			DecisionScope:    strings.TrimSpace(details.DecisionScope),
-			Industry:         strings.TrimSpace(details.Industry),
-			Region:           strings.TrimSpace(details.Region),
-			TeamSize:         nullInt(details.TeamSize),
-			ReportingLevel:   details.ReportingLevel,
-			Revision:         int32(expected),
+			ID:                    versionID,
+			OrganisationID:        organisationID,
+			Purpose:               strings.TrimSpace(details.Purpose),
+			Responsibilities:      strings.TrimSpace(details.Responsibilities),
+			BusinessOutcomes:      strings.TrimSpace(details.BusinessOutcomes),
+			DecisionScope:         strings.TrimSpace(details.DecisionScope),
+			Industry:              strings.TrimSpace(details.Industry),
+			Region:                strings.TrimSpace(details.Region),
+			TeamSize:              nullInt(details.TeamSize),
+			ReportingLevel:        details.ReportingLevel,
+			OrganogramID:          strings.TrimSpace(details.OrganogramID),
+			PositionID:            strings.TrimSpace(details.PositionID),
+			BusinessUnit:          strings.TrimSpace(details.BusinessUnit),
+			SubIndustry:           strings.TrimSpace(details.SubIndustry),
+			OrganisationalContext: strings.TrimSpace(details.OrganisationalContext),
+			Revision:              int32(expected),
 		})
 		if err != nil {
 			return mapWrite(err)
@@ -162,14 +167,34 @@ func (s SQLStore) UpdateContext(ctx context.Context, organisationID, versionID, 
 			if err != nil {
 				return err
 			}
+			kind, err := sourceKind(source.Kind)
+			if err != nil {
+				return err
+			}
+			origin, err := sourceOrigin(source.Origin)
+			if err != nil {
+				return err
+			}
 			if err := q.InsertRoleProfileSource(ctx, db.InsertRoleProfileSourceParams{
 				ID:               id,
 				OrganisationID:   organisationID,
 				ProfileVersionID: versionID,
 				Title:            strings.TrimSpace(source.Title),
 				ReferenceUri:     strings.TrimSpace(source.ReferenceURI),
+				Kind:             kind,
+				Body:             strings.TrimSpace(source.Body),
+				Origin:           origin,
 			}); err != nil {
 				return err
+			}
+		}
+		if details.FrameworkVersionID != nil {
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE role_profile_versions
+				SET framework_version_id = NULLIF($3, '')
+				WHERE id = $1 AND organisation_id = $2
+			`, versionID, organisationID, strings.TrimSpace(*details.FrameworkVersionID)); err != nil {
+				return mapWrite(err)
 			}
 		}
 		row, err := q.GetRoleProfileVersion(ctx, db.GetRoleProfileVersionParams{OrganisationID: organisationID, ID: versionID})
@@ -230,68 +255,15 @@ func (s SQLStore) AddSkill(ctx context.Context, organisationID, versionID, actor
 			RequiredProficiency: int32(input.RequiredProficiency),
 			Priority:            input.Priority,
 			Rationale:           strings.TrimSpace(input.Rationale),
+			Criteria:            strings.TrimSpace(input.Criteria),
 			Provenance:          input.Provenance,
 			Position:            int32(len(existing) + 1),
+			CreatedAt:           clock(),
+			UpdatedAt:           clock(),
 		}); err != nil {
 			return mapWrite(err)
 		}
 		if err := writeAudit(ctx, q, organisationID, row.RoleProfileID, versionID, actorID, ActionSkillAdded, clock()); err != nil {
-			return err
-		}
-		version, err = loadVersion(ctx, q, organisationID, versionID)
-		return err
-	})
-	return version, err
-}
-
-func (s SQLStore) UpdateSkill(ctx context.Context, organisationID, versionID, assignmentID, actorID string, expected int, edit SkillEdit) (Version, error) {
-	if err := validSkillEdit(edit); err != nil {
-		return Version{}, err
-	}
-	var version Version
-	err := s.inTx(ctx, func(q *db.Queries) error {
-		row, err := expectRow(ctx, q, organisationID, versionID, expected, StatusDraft)
-		if err != nil {
-			return err
-		}
-		skills, err := q.ListRoleProfileSkills(ctx, db.ListRoleProfileSkillsParams{OrganisationID: organisationID, ProfileVersionID: versionID})
-		if err != nil {
-			return err
-		}
-		var current *db.ListRoleProfileSkillsRow
-		for i := range skills {
-			if skills[i].ID == assignmentID {
-				current = &skills[i]
-				break
-			}
-		}
-		if current == nil {
-			return ErrNotFound
-		}
-		provenance := current.Provenance
-		if provenance == ProvenanceAISuggested {
-			provenance = ProvenanceHRAdjusted
-		}
-		touched, err := q.TouchRoleProfileDraft(ctx, db.TouchRoleProfileDraftParams{ID: versionID, OrganisationID: organisationID, Revision: int32(expected)})
-		if err != nil {
-			return err
-		}
-		if touched == 0 {
-			return ErrConflict
-		}
-		if err := q.UpdateRoleProfileSkill(ctx, db.UpdateRoleProfileSkillParams{
-			ID:                  assignmentID,
-			OrganisationID:      organisationID,
-			ProfileVersionID:    versionID,
-			Definition:          strings.TrimSpace(edit.Definition),
-			RequiredProficiency: int32(edit.RequiredProficiency),
-			Priority:            edit.Priority,
-			Rationale:           strings.TrimSpace(edit.Rationale),
-			Provenance:          provenance,
-		}); err != nil {
-			return mapWrite(err)
-		}
-		if err := writeAudit(ctx, q, organisationID, row.RoleProfileID, versionID, actorID, ActionSkillUpdated, clock()); err != nil {
 			return err
 		}
 		version, err = loadVersion(ctx, q, organisationID, versionID)
@@ -331,6 +303,7 @@ func (s SQLStore) RemoveSkill(ctx context.Context, organisationID, versionID, as
 				OrganisationID:   organisationID,
 				ProfileVersionID: versionID,
 				Position:         int32(i + 1),
+				UpdatedAt:        clock(),
 			}); err != nil {
 				return err
 			}
@@ -375,6 +348,7 @@ func (s SQLStore) ReorderSkills(ctx context.Context, organisationID, versionID, 
 				OrganisationID:   organisationID,
 				ProfileVersionID: versionID,
 				Position:         int32(position + 1),
+				UpdatedAt:        clock(),
 			}); err != nil {
 				return err
 			}
@@ -428,7 +402,7 @@ func (s SQLStore) Compare(ctx context.Context, organisationID, profileID, fromID
 }
 
 func (s SQLStore) Submit(ctx context.Context, organisationID, versionID, actorID string, expected int) (Version, error) {
-	return s.transition(ctx, organisationID, versionID, actorID, expected, StatusDraft, StatusInReview, ActionSubmitted)
+	return s.openReview(ctx, organisationID, versionID, actorID, expected, StatusDraft, ActionSubmitted)
 }
 
 func (s SQLStore) Publish(ctx context.Context, organisationID, versionID, actorID string, expected int) (Version, error) {
@@ -437,55 +411,153 @@ func (s SQLStore) Publish(ctx context.Context, organisationID, versionID, actorI
 		if _, err := expectRow(ctx, q, organisationID, versionID, expected, StatusInReview); err != nil {
 			return err
 		}
-		current, err := loadVersion(ctx, q, organisationID, versionID)
+		loaded, err := loadVersion(ctx, q, organisationID, versionID)
 		if err != nil {
 			return err
 		}
-		if err := readyForReview(current); err != nil {
-			return err
-		}
-		occurred := clock()
-		updated, err := q.TransitionRoleProfileVersion(ctx, db.TransitionRoleProfileVersionParams{
-			ID:             versionID,
-			OrganisationID: organisationID,
-			Revision:       int32(expected),
-			Status:         StatusPublished,
-			Status_2:       StatusInReview,
-		})
+		steps, err := readSteps(ctx, tx, organisationID, versionID)
 		if err != nil {
 			return err
 		}
-		if updated == 0 {
-			return ErrConflict
-		}
-		if err := writeAudit(ctx, q, organisationID, current.ProfileID, versionID, actorID, ActionPublished, occurred); err != nil {
-			return err
-		}
-		payload, err := roleProfilePublishedPayload(organisationID, current.ProfileID, versionID, actorID, current.VersionNumber, occurred)
+		decisions, err := readDecisions(ctx, tx, organisationID, versionID)
 		if err != nil {
 			return err
 		}
-		eventID, err := newID()
+		assignments, err := readAssignments(ctx, tx, organisationID, versionID)
 		if err != nil {
 			return err
 		}
-		correlationID, err := newID()
+		if err := finalStageReady(steps, loaded.WorkflowStage, cycleDecisions(decisions, versionID, loaded.SubmissionCycle)); err != nil {
+			return err
+		}
+		if assignee := assignmentForStage(assignments, versionID, loaded.WorkflowStage); assignee.ID != "" && assignee.AssigneePersonID != actorID {
+			return ErrForbidden
+		}
+		if err := publishVersion(ctx, q, tx, organisationID, versionID, actorID, expected); err != nil {
+			return err
+		}
+		loaded, err = loadVersion(ctx, q, organisationID, versionID)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO outbox_events (
-				id, event_type, schema_version, aggregate_id, occurred_at, correlation_id,
-				payload, status, attempts, next_attempt_at, last_error, created_at
-			) VALUES (
-				$1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 0, $8, '', $9
-			)`, eventID, outbox.RoleProfilePublishedType, publicationSchemaVersion, versionID, occurred, correlationID, string(payload), occurred, occurred); err != nil {
-			return err
-		}
-		version, err = loadVersion(ctx, q, organisationID, versionID)
-		return err
+		version = loaded
+		return nil
 	})
 	return version, err
+}
+
+func publishVersion(ctx context.Context, q *db.Queries, tx *sql.Tx, organisationID, versionID, actorID string, expected int) error {
+	if _, err := expectRow(ctx, q, organisationID, versionID, expected, StatusInReview); err != nil {
+		return err
+	}
+	current, err := loadVersion(ctx, q, organisationID, versionID)
+	if err != nil {
+		return err
+	}
+	if err := readyForReview(current); err != nil {
+		return err
+	}
+	occurred := clock()
+	updated, err := q.TransitionRoleProfileVersion(ctx, db.TransitionRoleProfileVersionParams{
+		ID:             versionID,
+		OrganisationID: organisationID,
+		Revision:       int32(expected),
+		Status:         StatusPublished,
+		Status_2:       StatusInReview,
+	})
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return ErrConflict
+	}
+	superseded, err := markSuperseded(ctx, tx, organisationID, current.ProfileID, versionID)
+	if err != nil {
+		return err
+	}
+	for _, supersededID := range superseded {
+		if err := writeAudit(ctx, q, organisationID, current.ProfileID, supersededID, actorID, ActionSuperseded, occurred); err != nil {
+			return err
+		}
+	}
+	if err := writeAudit(ctx, q, organisationID, current.ProfileID, versionID, actorID, ActionPublished, occurred); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE role_profile_versions
+		SET approved_at = $3, approved_by_person_id = $4
+		WHERE organisation_id = $1 AND id = $2
+	`, organisationID, versionID, occurred, actorID); err != nil {
+		return err
+	}
+	payload, err := roleProfilePublishedPayload(organisationID, current.ProfileID, versionID, actorID, current.VersionNumber, occurred)
+	if err != nil {
+		return err
+	}
+	eventID, err := newID()
+	if err != nil {
+		return err
+	}
+	correlationID, err := newID()
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO outbox_events (
+			id, event_type, schema_version, aggregate_id, occurred_at, correlation_id,
+			payload, status, attempts, next_attempt_at, last_error, created_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 0, $8, '', $9
+		)`, eventID, outbox.RoleProfilePublishedType, publicationSchemaVersion, versionID, occurred, correlationID, string(payload), occurred, occurred)
+	return err
+}
+
+func markSuperseded(ctx context.Context, tx *sql.Tx, organisationID, profileID, keepID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `
+		UPDATE role_profile_versions
+		SET status = $4, revision = revision + 1
+		WHERE organisation_id = $1 AND role_profile_id = $2 AND id <> $3 AND status = $5
+		RETURNING id
+	`, organisationID, profileID, keepID, StatusSuperseded, StatusPublished)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func retargetVersion(ctx context.Context, q *db.Queries, tx *sql.Tx, organisationID, versionID, actorID string, expected int, status, action string) error {
+	result, err := tx.ExecContext(ctx, `
+		UPDATE role_profile_versions
+		SET status = $4, revision = revision + 1
+		WHERE organisation_id = $1 AND id = $2 AND revision = $3 AND status = $5
+	`, organisationID, versionID, expected, status, StatusInReview)
+	if err != nil {
+		return err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return ErrConflict
+	}
+	if action == "" {
+		return nil
+	}
+	current, err := loadVersion(ctx, q, organisationID, versionID)
+	if err != nil {
+		return err
+	}
+	return writeAudit(ctx, q, organisationID, current.ProfileID, versionID, actorID, action, clock())
 }
 
 func (s SQLStore) transition(ctx context.Context, organisationID, versionID, actorID string, expected int, from, to, action string) (Version, error) {
@@ -565,6 +637,11 @@ func (s SQLStore) NextDraft(ctx context.Context, organisationID, versionID, acto
 			Region:                 source.Region,
 			TeamSize:               source.TeamSize,
 			ReportingLevel:         source.ReportingLevel,
+			OrganogramID:           source.OrganogramID,
+			PositionID:             source.PositionID,
+			BusinessUnit:           source.BusinessUnit,
+			SubIndustry:            source.SubIndustry,
+			OrganisationalContext:  source.OrganisationalContext,
 			FrameworkVersionID:     source.FrameworkVersionID,
 			AiDraft:                source.AiDraft,
 			AiModel:                source.AiModel,
@@ -579,12 +656,23 @@ func (s SQLStore) NextDraft(ctx context.Context, organisationID, versionID, acto
 			if err != nil {
 				return err
 			}
+			kind, err := sourceKind(sourceDoc.Kind)
+			if err != nil {
+				return err
+			}
+			origin, err := sourceOrigin(sourceDoc.Origin)
+			if err != nil {
+				return err
+			}
 			if err := q.InsertRoleProfileSource(ctx, db.InsertRoleProfileSourceParams{
 				ID:               id,
 				OrganisationID:   organisationID,
 				ProfileVersionID: nextID,
 				Title:            sourceDoc.Title,
 				ReferenceUri:     sourceDoc.ReferenceURI,
+				Kind:             kind,
+				Body:             sourceDoc.Body,
+				Origin:           origin,
 			}); err != nil {
 				return err
 			}
@@ -604,8 +692,11 @@ func (s SQLStore) NextDraft(ctx context.Context, organisationID, versionID, acto
 				RequiredProficiency: int32(skill.RequiredProficiency),
 				Priority:            skill.Priority,
 				Rationale:           skill.Rationale,
+				Criteria:            skill.Criteria,
 				Provenance:          skill.Provenance,
 				Position:            int32(skill.Position),
+				CreatedAt:           skill.CreatedAt,
+				UpdatedAt:           skill.UpdatedAt,
 			}); err != nil {
 				return err
 			}
@@ -633,7 +724,7 @@ func (s SQLStore) Comment(ctx context.Context, organisationID, versionID, actorI
 		if err != nil {
 			return err
 		}
-		if row.Status != StatusInReview {
+		if row.Status != StatusDraft && row.Status != StatusInReview {
 			return ErrImmutable
 		}
 		id, err := newID()
@@ -674,7 +765,15 @@ func (s SQLStore) History(ctx context.Context, organisationID, profileID string)
 	if err != nil {
 		return History{}, err
 	}
-	history := History{ProfileID: profileID, Events: make([]AuditEvent, 0, len(events)), Comments: make([]Comment, 0, len(comments))}
+	rows, err := s.queries.ListRoleProfileReviewChanges(ctx, db.ListRoleProfileReviewChangesParams{OrganisationID: organisationID, RoleProfileID: profileID})
+	if err != nil {
+		return History{}, err
+	}
+	changes, err := reviewChanges(rows)
+	if err != nil {
+		return History{}, err
+	}
+	history := History{ProfileID: profileID, Events: make([]AuditEvent, 0, len(events)), Comments: make([]Comment, 0, len(comments)), Changes: changes}
 	for _, event := range events {
 		history.Events = append(history.Events, AuditEvent{
 			ID:               event.ID,
@@ -771,6 +870,8 @@ func (s SQLStore) AttachAIDraft(ctx context.Context, organisationID, versionID, 
 				Rationale:           assignment.Rationale,
 				Provenance:          assignment.Provenance,
 				Position:            int32(assignment.Position),
+				CreatedAt:           clock(),
+				UpdatedAt:           clock(),
 			}); err != nil {
 				return mapWrite(err)
 			}
@@ -884,38 +985,55 @@ func loadVersion(ctx context.Context, q *db.Queries, organisationID, versionID s
 		return Version{}, err
 	}
 	version := Version{
-		ID:                 row.ID,
-		ProfileID:          row.RoleProfileID,
-		OrganisationID:     row.OrganisationID,
-		VersionNumber:      int(row.VersionNumber),
-		Revision:           int(row.Revision),
-		Status:             row.Status,
-		Purpose:            row.Purpose,
-		Responsibilities:   row.Responsibilities,
-		BusinessOutcomes:   row.BusinessOutcomes,
-		DecisionScope:      row.DecisionScope,
-		Industry:           row.Industry,
-		Region:             row.Region,
-		TeamSize:           intPtr(row.TeamSize),
-		ReportingLevel:     row.ReportingLevel,
-		FrameworkVersionID: row.FrameworkVersionID.String,
-		Sources:            make([]Source, 0, len(sources)),
-		Skills:             make([]SkillAssignment, 0, len(skills)),
+		ID:                    row.ID,
+		ProfileID:             row.RoleProfileID,
+		OrganisationID:        row.OrganisationID,
+		VersionNumber:         int(row.VersionNumber),
+		Revision:              int(row.Revision),
+		Status:                row.Status,
+		Purpose:               row.Purpose,
+		Responsibilities:      row.Responsibilities,
+		BusinessOutcomes:      row.BusinessOutcomes,
+		DecisionScope:         row.DecisionScope,
+		Industry:              row.Industry,
+		Region:                row.Region,
+		TeamSize:              intPtr(row.TeamSize),
+		ReportingLevel:        row.ReportingLevel,
+		OrganogramID:          row.OrganogramID,
+		PositionID:            row.PositionID,
+		BusinessUnit:          row.BusinessUnit,
+		SubIndustry:           row.SubIndustry,
+		OrganisationalContext: row.OrganisationalContext,
+		FrameworkVersionID:    row.FrameworkVersionID.String,
+		Sources:               make([]Source, 0, len(sources)),
+		Skills:                make([]SkillAssignment, 0, len(skills)),
 		AI: AIMetadata{
 			Model:                row.AiModel,
 			SourceContextVersion: row.AiSourceContextVersion,
 		},
-		CreatedAt: row.CreatedAt,
+		CreatedAt:           row.CreatedAt,
+		SubmittedByPersonID: row.SubmittedByPersonID,
+		SubmissionCycle:     int(row.SubmissionCycle),
+		WorkflowStage:       row.WorkflowStage,
+		ApprovedByPersonID:  row.ApprovedByPersonID,
 	}
 	if row.AiGeneratedAt.Valid {
 		generated := row.AiGeneratedAt.Time.UTC()
 		version.AI.GeneratedAt = &generated
 	}
+	if row.SubmittedAt.Valid {
+		submitted := row.SubmittedAt.Time.UTC()
+		version.SubmittedAt = &submitted
+	}
+	if row.ApprovedAt.Valid {
+		approved := row.ApprovedAt.Time.UTC()
+		version.ApprovedAt = &approved
+	}
 	if row.AiDraft != "" {
 		version.AI.Draft = []byte(row.AiDraft)
 	}
 	for _, source := range sources {
-		version.Sources = append(version.Sources, Source{ID: source.ID, Title: source.Title, ReferenceURI: source.ReferenceUri})
+		version.Sources = append(version.Sources, Source{ID: source.ID, Title: source.Title, ReferenceURI: source.ReferenceUri, Kind: source.Kind, Body: source.Body, Origin: source.Origin})
 	}
 	for _, skill := range skills {
 		version.Skills = append(version.Skills, SkillAssignment{
@@ -927,8 +1045,12 @@ func loadVersion(ctx context.Context, q *db.Queries, organisationID, versionID s
 			RequiredProficiency: int(skill.RequiredProficiency),
 			Priority:            skill.Priority,
 			Rationale:           skill.Rationale,
+			Criteria:            skill.Criteria,
+			DisplayName:         skill.DisplayName,
 			Provenance:          skill.Provenance,
 			Position:            int(skill.Position),
+			CreatedAt:           skill.CreatedAt,
+			UpdatedAt:           skill.UpdatedAt,
 		})
 	}
 	return version, nil
@@ -943,6 +1065,11 @@ func newVersionParams(id, organisationID, profileID, frameworkVersionID string, 
 		Revision:               1,
 		Status:                 StatusDraft,
 		ReportingLevel:         "",
+		OrganogramID:           "",
+		PositionID:             "",
+		BusinessUnit:           "",
+		SubIndustry:            "",
+		OrganisationalContext:  "",
 		FrameworkVersionID:     nullString(frameworkVersionID),
 		AiDraft:                "",
 		AiModel:                "",

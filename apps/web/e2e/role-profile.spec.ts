@@ -27,6 +27,10 @@ test("an admin creates a role profile and reaches approval", async ({ page }) =>
   await page.getByRole("link", { name: /7\. Review/ }).click();
   await page.getByRole("button", { name: "Submit for review" }).click();
   await expect(page.getByText("profile_in_review")).toBeVisible();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByText("Line Manager Review")).toBeVisible();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByText("Business Leader Approval")).toBeVisible();
+  await page.getByRole("button", { name: "Approve and save" }).click();
   await expect(page.getByText("profile_published")).toBeVisible();
 });

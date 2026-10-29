@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-dom", async () => {
@@ -14,9 +15,15 @@ vi.mock("@/features/role-profiles/actions", () => ({
   updateSkillForm: vi.fn(),
   publishRoleProfileForm: vi.fn(),
   submitRoleProfileForm: vi.fn(),
+  decideRoleProfileForm: vi.fn(),
+  resubmitRoleProfileForm: vi.fn(),
+  assignApprovalForm: vi.fn(),
   commentOnRoleProfileForm: vi.fn(),
   retryGenerationForm: vi.fn(),
   startGenerationForm: vi.fn(),
+  saveSkillReviewForm: vi.fn(),
+  saveSkillOrderForm: vi.fn(),
+  mergeSkillsForm: vi.fn(),
 }));
 
 vi.mock("@/features/role-profiles/job-refresh", () => ({
@@ -83,32 +90,62 @@ function profile(status: string): RoleProfile {
 }
 
 describe("role profile screens", { timeout: 20_000 }, () => {
-  it("shows draft skill controls and the recorded kind", () => {
+  it("shows draft skill controls and the recorded kind", async () => {
     render(<Workbench profile={profile("profile_draft")} />);
-    expect(screen.getByText("Territory planning")).toBeInTheDocument();
-    expect(screen.getByText("ai_suggested")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Area Sales Manager" })).toBeInTheDocument();
+    expect(screen.getAllByText(/AI suggestion/).length).toBeGreaterThan(0);
     expect(screen.getByText("Recorded kind: technical")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save skill" })).toBeEnabled();
+    expect(screen.getAllByText("No skills in this category.").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Confirm removal of Territory planning" })).toBeRequired();
+    await userEvent.type(screen.getByRole("textbox", { name: "Skill name for Territory planning" }), " updated");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   }, 20_000);
 
   it("does not offer skill editing on a published version", () => {
     render(<Workbench profile={profile("profile_published")} />);
-    expect(screen.queryByRole("button", { name: "Save skill" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove skill" })).not.toBeInTheDocument();
     expect(screen.getAllByText("profile_published").length).toBeGreaterThan(0);
   });
 
-  it("offers publish only while the service status is in review", () => {
+  it("offers the current approval actions and keeps rejection off a draft", () => {
     const history = { ok: true as const, value: { profileId: "profile-1", events: [], comments: [] } };
     const versions = { ok: true as const, value: [] };
+    const approvals = {
+      ok: true as const,
+      value: {
+        assignments: [],
+        decisions: [],
+        steps: [
+          {
+            id: "step-1",
+            organisationId: "org-a",
+            profileVersionId: "version-1",
+            stageKey: "leader_approval",
+            label: "Business Leader Approval",
+            requiredRole: "leader",
+            position: 1,
+          },
+        ],
+        currentStage: "leader_approval",
+        stageLabel: "Business Leader Approval",
+        assigneePersonId: "leader-1",
+        outstanding: "Business Leader Approval",
+        canDecide: true,
+        canResubmit: false,
+      },
+    };
     const { rerender } = render(<ReviewPanel profile={profile("profile_draft")} history={history} versions={versions} />);
     expect(screen.getByRole("button", { name: "Submit for review" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve and save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+    rerender(<ReviewPanel profile={profile("profile_in_review")} history={history} versions={versions} approvals={approvals} />);
+    expect(screen.getByRole("button", { name: "Approve and save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
-    rerender(<ReviewPanel profile={profile("profile_in_review")} history={history} versions={versions} />);
-    expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
   });
 
   it("shows a timed-out generation job and a retry control", () => {

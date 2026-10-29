@@ -10,11 +10,12 @@ import (
 )
 
 type SQLStore struct {
-	queries *db.Queries
+	database *sql.DB
+	queries  *db.Queries
 }
 
-func NewSQLStore(queries *db.Queries) SQLStore {
-	return SQLStore{queries: queries}
+func NewSQLStore(database *sql.DB) SQLStore {
+	return SQLStore{database: database, queries: db.New(database)}
 }
 
 func (s SQLStore) ListDepartments(ctx context.Context, organisationID string) ([]Department, error) {

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { RoleProfileFrame } from "@/features/role-profiles/frame";
+import { WorkflowShell } from "@/features/role-profiles/frame";
 import { ProfileLoadError } from "@/features/role-profiles/load-error";
 import { SourcesPanel } from "@/features/role-profiles/sources-panel";
 import { readRoleProfile } from "@/lib/role-profile";
@@ -25,9 +25,9 @@ export default async function SourcesPage({
   try {
     const profile = await readRoleProfile(token, profileId);
     return (
-      <RoleProfileFrame profile={profile} current="sources" error={query.error ?? ""} notice={query.notice ?? ""}>
+      <WorkflowShell token={token} profile={profile} current="role" error={query.error ?? ""} notice={query.notice ?? ""}>
         <SourcesPanel profile={profile} />
-      </RoleProfileFrame>
+      </WorkflowShell>
     );
   } catch (error) {
     return <ProfileLoadError error={error} />;

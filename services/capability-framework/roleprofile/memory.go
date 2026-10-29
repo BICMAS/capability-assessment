@@ -19,6 +19,12 @@ type Memory struct {
 	contexts     []ContextRecord
 	questions    []Question
 	jobs         []Job
+	assignments  []ApprovalAssignment
+	decisions    []ApprovalDecision
+	paths        map[string][]ApprovalPathStage
+	steps        []WorkflowStep
+	changes      []ReviewChange
+	jobFiles     []storedJobFile
 	frameworks   map[string]map[string]struct{}
 	publications [][]byte
 }
@@ -150,6 +156,11 @@ func (m *Memory) UpdateContext(_ context.Context, organisationID, versionID, act
 	if err != nil {
 		return Version{}, err
 	}
+	if details.FrameworkVersionID != nil && strings.TrimSpace(*details.FrameworkVersionID) != "" {
+		if _, known := m.frameworks[organisationID][strings.TrimSpace(*details.FrameworkVersionID)]; !known {
+			return Version{}, ErrNotFound
+		}
+	}
 	version.Purpose = strings.TrimSpace(details.Purpose)
 	version.Responsibilities = strings.TrimSpace(details.Responsibilities)
 	version.BusinessOutcomes = strings.TrimSpace(details.BusinessOutcomes)
@@ -158,6 +169,14 @@ func (m *Memory) UpdateContext(_ context.Context, organisationID, versionID, act
 	version.Region = strings.TrimSpace(details.Region)
 	version.ReportingLevel = details.ReportingLevel
 	version.TeamSize = copyInt(details.TeamSize)
+	version.OrganogramID = strings.TrimSpace(details.OrganogramID)
+	version.PositionID = strings.TrimSpace(details.PositionID)
+	version.BusinessUnit = strings.TrimSpace(details.BusinessUnit)
+	version.SubIndustry = strings.TrimSpace(details.SubIndustry)
+	version.OrganisationalContext = strings.TrimSpace(details.OrganisationalContext)
+	if details.FrameworkVersionID != nil {
+		version.FrameworkVersionID = strings.TrimSpace(*details.FrameworkVersionID)
+	}
 	version.Sources = sources
 	version.Revision++
 	if err := m.audit(organisationID, version.ProfileID, version.ID, actorID, ActionContext, clock()); err != nil {
@@ -201,41 +220,14 @@ func (m *Memory) AddSkill(_ context.Context, organisationID, versionID, actorID 
 		RequiredProficiency: input.RequiredProficiency,
 		Priority:            input.Priority,
 		Rationale:           strings.TrimSpace(input.Rationale),
+		Criteria:            strings.TrimSpace(input.Criteria),
 		Provenance:          input.Provenance,
 		Position:            len(version.Skills) + 1,
+		CreatedAt:           clock(),
+		UpdatedAt:           clock(),
 	})
 	version.Revision++
 	if err := m.audit(organisationID, version.ProfileID, version.ID, actorID, ActionSkillAdded, clock()); err != nil {
-		return Version{}, err
-	}
-	return cloneVersion(*version), nil
-}
-
-func (m *Memory) UpdateSkill(_ context.Context, organisationID, versionID, assignmentID, actorID string, expected int, edit SkillEdit) (Version, error) {
-	if err := validSkillEdit(edit); err != nil {
-		return Version{}, err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	version, err := m.editable(organisationID, versionID, expected)
-	if err != nil {
-		return Version{}, err
-	}
-	index := skillIndex(version.Skills, assignmentID)
-	if index < 0 {
-		return Version{}, ErrNotFound
-	}
-	skill := version.Skills[index]
-	skill.Definition = strings.TrimSpace(edit.Definition)
-	skill.RequiredProficiency = edit.RequiredProficiency
-	skill.Priority = edit.Priority
-	skill.Rationale = strings.TrimSpace(edit.Rationale)
-	if skill.Provenance == ProvenanceAISuggested {
-		skill.Provenance = ProvenanceHRAdjusted
-	}
-	version.Skills[index] = skill
-	version.Revision++
-	if err := m.audit(organisationID, version.ProfileID, version.ID, actorID, ActionSkillUpdated, clock()); err != nil {
 		return Version{}, err
 	}
 	return cloneVersion(*version), nil
@@ -330,6 +322,9 @@ func (m *Memory) Submit(_ context.Context, organisationID, versionID, actorID st
 	if err := readyForReview(*version); err != nil {
 		return Version{}, err
 	}
+	if err := m.beginCycle(version, actorID); err != nil {
+		return Version{}, err
+	}
 	version.Status = StatusInReview
 	version.Revision++
 	if err := m.audit(organisationID, version.ProfileID, version.ID, actorID, ActionSubmitted, clock()); err != nil {
@@ -345,21 +340,49 @@ func (m *Memory) Publish(_ context.Context, organisationID, versionID, actorID s
 	if err != nil {
 		return Version{}, err
 	}
-	if err := readyForReview(*version); err != nil {
+	steps := m.stepsFor(organisationID, versionID)
+	if err := finalStageReady(steps, version.WorkflowStage, cycleDecisions(m.decisions, versionID, version.SubmissionCycle)); err != nil {
 		return Version{}, err
+	}
+	if assignee := assignmentForStage(m.assignments, versionID, version.WorkflowStage); assignee.ID != "" && assignee.AssigneePersonID != actorID {
+		return Version{}, ErrForbidden
+	}
+	if err := m.publishLocked(organisationID, version, actorID); err != nil {
+		return Version{}, err
+	}
+	return cloneVersion(*version), nil
+}
+
+func (m *Memory) publishLocked(organisationID string, version *Version, actorID string) error {
+	if err := readyForReview(*version); err != nil {
+		return err
 	}
 	occurred := clock()
 	payload, err := roleProfilePublishedPayload(organisationID, version.ProfileID, version.ID, actorID, version.VersionNumber, occurred)
 	if err != nil {
-		return Version{}, err
+		return err
+	}
+	for i := range m.versions {
+		other := &m.versions[i]
+		if other.OrganisationID != organisationID || other.ProfileID != version.ProfileID || other.ID == version.ID || other.Status != StatusPublished {
+			continue
+		}
+		other.Status = StatusSuperseded
+		other.Revision++
+		if err := m.audit(organisationID, other.ProfileID, other.ID, actorID, ActionSuperseded, occurred); err != nil {
+			return err
+		}
 	}
 	version.Status = StatusPublished
+	approved := occurred
+	version.ApprovedAt = &approved
+	version.ApprovedByPersonID = actorID
 	version.Revision++
 	if err := m.audit(organisationID, version.ProfileID, version.ID, actorID, ActionPublished, occurred); err != nil {
-		return Version{}, err
+		return err
 	}
 	m.publications = append(m.publications, payload)
-	return cloneVersion(*version), nil
+	return nil
 }
 
 func (m *Memory) Publications() [][]byte {
@@ -392,6 +415,12 @@ func (m *Memory) NextDraft(_ context.Context, organisationID, versionID, actorID
 	next.VersionNumber = source.VersionNumber + 1
 	next.Revision = 1
 	next.Status = StatusDraft
+	next.WorkflowStage = ""
+	next.SubmittedAt = nil
+	next.SubmittedByPersonID = ""
+	next.SubmissionCycle = 0
+	next.ApprovedAt = nil
+	next.ApprovedByPersonID = ""
 	next.CreatedAt = now
 	for i := range next.Sources {
 		sourceID, err := newID()
@@ -425,7 +454,7 @@ func (m *Memory) Comment(_ context.Context, organisationID, versionID, actorID, 
 	if !ok {
 		return Comment{}, ErrNotFound
 	}
-	if version.Status != StatusInReview {
+	if version.Status != StatusDraft && version.Status != StatusInReview {
 		return Comment{}, ErrImmutable
 	}
 	id, err := newID()
@@ -462,7 +491,15 @@ func (m *Memory) History(_ context.Context, organisationID, profileID string) (H
 			comments = append(comments, comment)
 		}
 	}
-	return History{ProfileID: profileID, Events: events, Comments: comments}, nil
+	changes := make([]ReviewChange, 0)
+	for _, change := range m.changes {
+		version, ok := m.version(organisationID, change.ProfileVersionID)
+		if ok && version.ProfileID == profileID {
+			change.Fields = append([]string{}, change.Fields...)
+			changes = append(changes, change)
+		}
+	}
+	return History{ProfileID: profileID, Events: events, Comments: comments, Changes: changes}, nil
 }
 
 func (m *Memory) AttachAIDraft(_ context.Context, organisationID, versionID, actorID string, draft AIDraft) (Version, error) {
@@ -507,6 +544,8 @@ func (m *Memory) AttachAIDraft(_ context.Context, organisationID, versionID, act
 			Rationale:           strings.TrimSpace(suggested.Rationale),
 			Provenance:          ProvenanceAISuggested,
 			Position:            len(assignments) + 1,
+			CreatedAt:           clock(),
+			UpdatedAt:           clock(),
 		})
 	}
 	snapshot, err := snapshotDraft(draft, assignments)
@@ -613,7 +652,22 @@ func (m *Memory) sources(inputs []Source) ([]Source, error) {
 		if err != nil {
 			return nil, err
 		}
-		sources = append(sources, Source{ID: id, Title: strings.TrimSpace(input.Title), ReferenceURI: strings.TrimSpace(input.ReferenceURI)})
+		kind, err := sourceKind(input.Kind)
+		if err != nil {
+			return nil, err
+		}
+		origin, err := sourceOrigin(input.Origin)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, Source{
+			ID:           id,
+			Title:        strings.TrimSpace(input.Title),
+			ReferenceURI: strings.TrimSpace(input.ReferenceURI),
+			Kind:         kind,
+			Body:         strings.TrimSpace(input.Body),
+			Origin:       origin,
+		})
 	}
 	return sources, nil
 }
@@ -695,7 +749,17 @@ func cloneVersion(version Version) Version {
 	if version.AI.Draft != nil {
 		cloned.AI.Draft = append(json.RawMessage{}, version.AI.Draft...)
 	}
+	cloned.SubmittedAt = copyTime(version.SubmittedAt)
+	cloned.ApprovedAt = copyTime(version.ApprovedAt)
 	return cloned
+}
+
+func copyTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
 }
 
 func validAIDraft(draft AIDraft) error {

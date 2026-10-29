@@ -7,8 +7,99 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
+
+const deletePosition = `-- name: DeletePosition :exec
+DELETE FROM positions
+WHERE organisation_id = $1 AND organogram_id = $2 AND id = $3
+`
+
+type DeletePositionParams struct {
+	OrganisationID string
+	OrganogramID   string
+	ID             string
+}
+
+func (q *Queries) DeletePosition(ctx context.Context, arg DeletePositionParams) error {
+	_, err := q.db.ExecContext(ctx, deletePosition, arg.OrganisationID, arg.OrganogramID, arg.ID)
+	return err
+}
+
+const getDepartment = `-- name: GetDepartment :one
+SELECT id, organisation_id, name
+FROM departments
+WHERE organisation_id = $1 AND id = $2
+`
+
+type GetDepartmentParams struct {
+	OrganisationID string
+	ID             string
+}
+
+func (q *Queries) GetDepartment(ctx context.Context, arg GetDepartmentParams) (Department, error) {
+	row := q.db.QueryRowContext(ctx, getDepartment, arg.OrganisationID, arg.ID)
+	var i Department
+	err := row.Scan(&i.ID, &i.OrganisationID, &i.Name)
+	return i, err
+}
+
+const getOrganogram = `-- name: GetOrganogram :one
+SELECT id, organisation_id, name, status, created_by_person_id, created_at
+FROM organograms
+WHERE organisation_id = $1 AND id = $2
+`
+
+type GetOrganogramParams struct {
+	OrganisationID string
+	ID             string
+}
+
+func (q *Queries) GetOrganogram(ctx context.Context, arg GetOrganogramParams) (Organogram, error) {
+	row := q.db.QueryRowContext(ctx, getOrganogram, arg.OrganisationID, arg.ID)
+	var i Organogram
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Name,
+		&i.Status,
+		&i.CreatedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOrganogramFile = `-- name: GetOrganogramFile :one
+SELECT id, organisation_id, organogram_id, file_name, media_type, byte_size, body, status, detail, created_by_person_id, created_at
+FROM organogram_files
+WHERE organisation_id = $1 AND organogram_id = $2 AND id = $3
+`
+
+type GetOrganogramFileParams struct {
+	OrganisationID string
+	OrganogramID   string
+	ID             string
+}
+
+func (q *Queries) GetOrganogramFile(ctx context.Context, arg GetOrganogramFileParams) (OrganogramFile, error) {
+	row := q.db.QueryRowContext(ctx, getOrganogramFile, arg.OrganisationID, arg.OrganogramID, arg.ID)
+	var i OrganogramFile
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.OrganogramID,
+		&i.FileName,
+		&i.MediaType,
+		&i.ByteSize,
+		&i.Body,
+		&i.Status,
+		&i.Detail,
+		&i.CreatedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const getPerson = `-- name: GetPerson :one
 SELECT
@@ -43,6 +134,148 @@ func (q *Queries) GetPerson(ctx context.Context, arg GetPersonParams) (GetPerson
 		&i.DepartmentName,
 	)
 	return i, err
+}
+
+const getPosition = `-- name: GetPosition :one
+SELECT id, organisation_id, organogram_id, department_id, title, person_id, reports_to_position_id, created_at
+FROM positions
+WHERE organisation_id = $1 AND id = $2
+`
+
+type GetPositionParams struct {
+	OrganisationID string
+	ID             string
+}
+
+func (q *Queries) GetPosition(ctx context.Context, arg GetPositionParams) (Position, error) {
+	row := q.db.QueryRowContext(ctx, getPosition, arg.OrganisationID, arg.ID)
+	var i Position
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.OrganogramID,
+		&i.DepartmentID,
+		&i.Title,
+		&i.PersonID,
+		&i.ReportsToPositionID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertOrganogram = `-- name: InsertOrganogram :exec
+INSERT INTO organograms (id, organisation_id, name, status, created_by_person_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertOrganogramParams struct {
+	ID                string
+	OrganisationID    string
+	Name              string
+	Status            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+func (q *Queries) InsertOrganogram(ctx context.Context, arg InsertOrganogramParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrganogram,
+		arg.ID,
+		arg.OrganisationID,
+		arg.Name,
+		arg.Status,
+		arg.CreatedByPersonID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertOrganogramFile = `-- name: InsertOrganogramFile :exec
+INSERT INTO organogram_files (
+    id,
+    organisation_id,
+    organogram_id,
+    file_name,
+    media_type,
+    byte_size,
+    body,
+    status,
+    detail,
+    created_by_person_id,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+`
+
+type InsertOrganogramFileParams struct {
+	ID                string
+	OrganisationID    string
+	OrganogramID      string
+	FileName          string
+	MediaType         string
+	ByteSize          int32
+	Body              []byte
+	Status            string
+	Detail            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+func (q *Queries) InsertOrganogramFile(ctx context.Context, arg InsertOrganogramFileParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrganogramFile,
+		arg.ID,
+		arg.OrganisationID,
+		arg.OrganogramID,
+		arg.FileName,
+		arg.MediaType,
+		arg.ByteSize,
+		arg.Body,
+		arg.Status,
+		arg.Detail,
+		arg.CreatedByPersonID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertPosition = `-- name: InsertPosition :exec
+INSERT INTO positions (
+    id,
+    organisation_id,
+    organogram_id,
+    department_id,
+    title,
+    person_id,
+    reports_to_position_id,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+)
+`
+
+type InsertPositionParams struct {
+	ID                  string
+	OrganisationID      string
+	OrganogramID        string
+	DepartmentID        sql.NullString
+	Title               string
+	PersonID            sql.NullString
+	ReportsToPositionID sql.NullString
+	CreatedAt           time.Time
+}
+
+func (q *Queries) InsertPosition(ctx context.Context, arg InsertPositionParams) error {
+	_, err := q.db.ExecContext(ctx, insertPosition,
+		arg.ID,
+		arg.OrganisationID,
+		arg.OrganogramID,
+		arg.DepartmentID,
+		arg.Title,
+		arg.PersonID,
+		arg.ReportsToPositionID,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const insertRoleAssignment = `-- name: InsertRoleAssignment :exec
@@ -106,6 +339,102 @@ func (q *Queries) ListDepartments(ctx context.Context, organisationID string) ([
 	return items, nil
 }
 
+const listOrganogramFiles = `-- name: ListOrganogramFiles :many
+SELECT id, organisation_id, organogram_id, file_name, media_type, byte_size, status, detail, created_by_person_id, created_at
+FROM organogram_files
+WHERE organisation_id = $1 AND organogram_id = $2
+ORDER BY created_at ASC, id ASC
+`
+
+type ListOrganogramFilesParams struct {
+	OrganisationID string
+	OrganogramID   string
+}
+
+type ListOrganogramFilesRow struct {
+	ID                string
+	OrganisationID    string
+	OrganogramID      string
+	FileName          string
+	MediaType         string
+	ByteSize          int32
+	Status            string
+	Detail            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+func (q *Queries) ListOrganogramFiles(ctx context.Context, arg ListOrganogramFilesParams) ([]ListOrganogramFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganogramFiles, arg.OrganisationID, arg.OrganogramID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganogramFilesRow
+	for rows.Next() {
+		var i ListOrganogramFilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.OrganogramID,
+			&i.FileName,
+			&i.MediaType,
+			&i.ByteSize,
+			&i.Status,
+			&i.Detail,
+			&i.CreatedByPersonID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganograms = `-- name: ListOrganograms :many
+SELECT id, organisation_id, name, status, created_by_person_id, created_at
+FROM organograms
+WHERE organisation_id = $1
+ORDER BY name ASC, id ASC
+`
+
+func (q *Queries) ListOrganograms(ctx context.Context, organisationID string) ([]Organogram, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganograms, organisationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organogram
+	for rows.Next() {
+		var i Organogram
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.Name,
+			&i.Status,
+			&i.CreatedByPersonID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPeople = `-- name: ListPeople :many
 SELECT
     p.id,
@@ -139,6 +468,50 @@ func (q *Queries) ListPeople(ctx context.Context, organisationID string) ([]List
 			&i.OrganisationID,
 			&i.Name,
 			&i.DepartmentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPositions = `-- name: ListPositions :many
+SELECT id, organisation_id, organogram_id, department_id, title, person_id, reports_to_position_id, created_at
+FROM positions
+WHERE organisation_id = $1 AND organogram_id = $2
+ORDER BY title ASC, id ASC
+`
+
+type ListPositionsParams struct {
+	OrganisationID string
+	OrganogramID   string
+}
+
+func (q *Queries) ListPositions(ctx context.Context, arg ListPositionsParams) ([]Position, error) {
+	rows, err := q.db.QueryContext(ctx, listPositions, arg.OrganisationID, arg.OrganogramID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Position
+	for rows.Next() {
+		var i Position
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.OrganogramID,
+			&i.DepartmentID,
+			&i.Title,
+			&i.PersonID,
+			&i.ReportsToPositionID,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -244,4 +617,53 @@ func (q *Queries) ListRoleTitlesForPerson(ctx context.Context, arg ListRoleTitle
 		return nil, err
 	}
 	return items, nil
+}
+
+const setOrganogramStatus = `-- name: SetOrganogramStatus :exec
+UPDATE organograms
+SET status = $3
+WHERE organisation_id = $1 AND id = $2
+`
+
+type SetOrganogramStatusParams struct {
+	OrganisationID string
+	ID             string
+	Status         string
+}
+
+func (q *Queries) SetOrganogramStatus(ctx context.Context, arg SetOrganogramStatusParams) error {
+	_, err := q.db.ExecContext(ctx, setOrganogramStatus, arg.OrganisationID, arg.ID, arg.Status)
+	return err
+}
+
+const updatePosition = `-- name: UpdatePosition :exec
+UPDATE positions
+SET department_id = $4,
+    title = $5,
+    person_id = $6,
+    reports_to_position_id = $7
+WHERE organisation_id = $1 AND organogram_id = $2 AND id = $3
+`
+
+type UpdatePositionParams struct {
+	OrganisationID      string
+	OrganogramID        string
+	ID                  string
+	DepartmentID        sql.NullString
+	Title               string
+	PersonID            sql.NullString
+	ReportsToPositionID sql.NullString
+}
+
+func (q *Queries) UpdatePosition(ctx context.Context, arg UpdatePositionParams) error {
+	_, err := q.db.ExecContext(ctx, updatePosition,
+		arg.OrganisationID,
+		arg.OrganogramID,
+		arg.ID,
+		arg.DepartmentID,
+		arg.Title,
+		arg.PersonID,
+		arg.ReportsToPositionID,
+	)
+	return err
 }

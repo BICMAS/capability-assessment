@@ -110,7 +110,7 @@ func TestRoleProfileDraftLifecycle(t *testing.T) {
 		t.Fatalf("publish draft = %d %s", early.Code, early.Raw)
 	}
 	submitted := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+created.Body.Version.ID+"/submit", `{"expectedRevision":7}`)
-	if submitted.Code != http.StatusOK || submitted.Body.Status != StatusInReview || submitted.Body.Revision != 8 {
+	if submitted.Code != http.StatusOK || submitted.Body.Status != StatusInReview || submitted.Body.WorkflowStage != StageHRReview || submitted.Body.Revision != 8 {
 		t.Fatalf("submit = %d %#v", submitted.Code, submitted.Body)
 	}
 	blocked := callJSON[Version](t, api, http.MethodPatch, "/role-profile-versions/"+created.Body.Version.ID+"/skills/"+submitted.Body.Skills[0].ID, `{"expectedRevision":8,"definition":"Changed in review","requiredProficiency":4,"priority":"required","rationale":"No"}`)
@@ -121,20 +121,24 @@ func TestRoleProfileDraftLifecycle(t *testing.T) {
 	if note.Code != http.StatusCreated || note.Body.AuthorPersonID != claims.PersonID {
 		t.Fatalf("comment = %d %#v", note.Code, note.Body)
 	}
-	published := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+created.Body.Version.ID+"/publish", `{"expectedRevision":8}`)
-	if published.Code != http.StatusOK || published.Body.Status != StatusPublished {
-		t.Fatalf("publish = %d %#v", published.Code, published.Body)
+	skipped := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+created.Body.Version.ID+"/publish", `{"expectedRevision":8}`)
+	if skipped.Code != http.StatusConflict || errorCode(t, skipped.Raw) != "immutable" {
+		t.Fatalf("skip publish = %d %s", skipped.Code, skipped.Raw)
+	}
+	published := approveThroughHTTP(t, api, submitted.Body)
+	if published.Status != StatusPublished || published.ApprovedByPersonID != claims.PersonID {
+		t.Fatalf("publish = %#v", published)
 	}
 	recorded := store.Publications()
-	if len(recorded) != 1 || !strings.Contains(string(recorded[0]), `"type":"role_profile.published"`) || !strings.Contains(string(recorded[0]), published.Body.ID) {
+	if len(recorded) != 1 || !strings.Contains(string(recorded[0]), `"type":"role_profile.published"`) || !strings.Contains(string(recorded[0]), published.ID) {
 		t.Fatalf("publication = %s", recorded)
 	}
-	frozen := callJSON[Version](t, api, http.MethodPatch, "/role-profile-versions/"+created.Body.Version.ID, `{"expectedRevision":9,"purpose":"Changed","responsibilities":"Own the territory","businessOutcomes":"Revenue","decisionScope":"Discount to 10%","industry":"Logistics","region":"UK","teamSize":8,"reportingLevel":"manager","sources":[]}`)
+	frozen := callJSON[Version](t, api, http.MethodPatch, "/role-profile-versions/"+created.Body.Version.ID, `{"expectedRevision":`+itoa(published.Revision)+`,"purpose":"Changed","responsibilities":"Own the territory","businessOutcomes":"Revenue","decisionScope":"Discount to 10%","industry":"Logistics","region":"UK","teamSize":8,"reportingLevel":"manager","sources":[]}`)
 	if frozen.Code != http.StatusConflict || errorCode(t, frozen.Raw) != "immutable" {
 		t.Fatalf("edit published = %d %s", frozen.Code, frozen.Raw)
 	}
 
-	next := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+created.Body.Version.ID+"/next-draft", `{"expectedRevision":9}`)
+	next := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+created.Body.Version.ID+"/next-draft", `{"expectedRevision":`+itoa(published.Revision)+`}`)
 	if next.Code != http.StatusCreated || next.Body.VersionNumber != 2 || next.Body.Status != StatusDraft || next.Body.Revision != 1 || next.Body.Skills[0].Definition != "Agrees the commercial terms" {
 		t.Fatalf("next = %d %#v", next.Code, next.Body)
 	}
@@ -159,6 +163,19 @@ func TestRoleProfileDraftLifecycle(t *testing.T) {
 	if denied != http.StatusForbidden || errorCode(t, deniedBody) != "forbidden" {
 		t.Fatalf("employee = %d %s", denied, deniedBody)
 	}
+}
+
+func approveThroughHTTP(t *testing.T, api apiClient, version Version) Version {
+	t.Helper()
+	current := version
+	for current.Status != StatusPublished {
+		decided := callJSON[Version](t, api, http.MethodPost, "/role-profile-versions/"+current.ID+"/approval-decisions", `{"assignmentId":"","decision":"approved","comment":"Approved","expectedRevision":`+itoa(current.Revision)+`}`)
+		if decided.Code != http.StatusOK {
+			t.Fatalf("approve %s = %d %s", current.WorkflowStage, decided.Code, decided.Raw)
+		}
+		current = decided.Body
+	}
+	return current
 }
 
 func TestAIDraftIsPreservedWhenTheProfileIsCustomised(t *testing.T) {

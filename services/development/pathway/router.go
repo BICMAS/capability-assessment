@@ -19,5 +19,11 @@ func NewRouter(check func(context.Context) error, secret, webhookSecret []byte, 
 	protected.Post("/course-mappings", MapCourse(store))
 	protected.Post("/pathways", CreatePathway(store))
 	protected.Get("/pathways", ReadPathway(store))
+	protected.Post("/learning-resources", SaveResource(store))
+	protected.Get("/learning-resources", ListResources(store))
+	protected.Post("/learning-recommendations", CreateRecommendation(store))
+	protected.Get("/learning-recommendations", ListLearningRecommendations(store))
+	protected.Post("/practice-sessions", CreatePractice(store))
+	protected.Get("/practice-sessions", ListPracticeSessions(store))
 	return router
 }

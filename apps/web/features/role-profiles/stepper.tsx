@@ -1,33 +1,44 @@
 import Link from "next/link";
 
-const steps = [
-  { id: "directory", label: "Directory", href: "/admin/role-profiles" },
-  { id: "context", label: "Role context", href: "context" },
-  { id: "sources", label: "Sources", href: "sources" },
-  { id: "clarify", label: "Clarification", href: "clarify" },
-  { id: "generation", label: "Generation", href: "generation" },
-  { id: "skills", label: "Skills", href: "" },
-  { id: "review", label: "Review", href: "review" },
-  { id: "history", label: "History", href: "history" },
-] as const;
+import { buildWorkflow, stageStateLabel, type StageId, type WorkflowEvidence } from "./workflow";
+import type { RoleProfile } from "@/lib/role-profile";
 
-export type WorkflowStep = (typeof steps)[number]["id"];
+export type WorkflowStep = StageId;
 
-export function WorkflowStepper({ profileId, current }: { profileId?: string; current: WorkflowStep }) {
+export function WorkflowStepper({
+  profile,
+  current,
+  evidence,
+}: {
+  profile?: RoleProfile | null;
+  current: StageId;
+  evidence?: WorkflowEvidence | null;
+}) {
+  const stages = buildWorkflow({ profile, current, evidence });
   return (
-    <nav className="workflow-nav" aria-label="Role profile workflow">
+    <nav className="workflow-nav" aria-label="Role skills workflow">
       <ol>
-        {steps.map((step, index) => {
-          const href = step.id === "directory" ? step.href : profileId ? `/admin/role-profiles/${profileId}${step.href ? `/${step.href}` : ""}` : "";
+        {stages.map((stage) => {
+          const label = stageStateLabel(stage);
+          const body = (
+            <>
+              <span className="workflow-index">{stage.number}</span>
+              <span className="workflow-copy">
+                <span className="workflow-title">{stage.title}</span>
+                <span className="workflow-summary">{stage.description}</span>
+                <span className="workflow-state">{label}</span>
+              </span>
+            </>
+          );
           return (
-            <li key={step.id}>
-              {href ? (
-                <Link href={href} aria-current={step.id === current ? "step" : undefined}>
-                  {index + 1}. {step.label}
+            <li key={stage.id} data-state={stage.status} data-tone={stage.tone}>
+              {stage.href ? (
+                <Link href={stage.href} aria-current={stage.current ? "step" : undefined}>
+                  {body}
                 </Link>
               ) : (
-                <span aria-current={step.id === current ? "step" : undefined}>
-                  {index + 1}. {step.label}
+                <span aria-disabled="true" aria-current={stage.current ? "step" : undefined}>
+                  {body}
                 </span>
               )}
             </li>

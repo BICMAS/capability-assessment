@@ -304,7 +304,11 @@ type InsightActor struct {
 type InsightRequest struct {
 	PersonID         string
 	Department       string
+	RoleName         string
+	Query            string
 	ProfileVersionID string
+	From             time.Time
+	To               time.Time
 }
 
 type InsightSkill struct {
@@ -329,12 +333,15 @@ type Insight struct {
 	ProfileVersionID   string          `json:"profileVersionId"`
 	Population         []string        `json:"population"`
 	People             []InsightPerson `json:"people"`
+	Summary            InsightSummary  `json:"summary"`
 	EmploymentDecision string          `json:"employmentDecision"`
 }
 
 type InsightPerson struct {
-	PersonID string          `json:"personId"`
-	Skills   []ClassifiedGap `json:"skills"`
+	PersonID   string          `json:"personId"`
+	Department string          `json:"department,omitempty"`
+	RoleName   string          `json:"roleName,omitempty"`
+	Skills     []ClassifiedGap `json:"skills"`
 }
 
 func BuildInsight(actor InsightActor, request InsightRequest, subjects []InsightSubject) (Insight, error) {
@@ -344,7 +351,15 @@ func BuildInsight(actor InsightActor, request InsightRequest, subjects []Insight
 	if err := authoriseInsight(actor, request); err != nil {
 		return Insight{}, err
 	}
-	insight := Insight{ProfileVersionID: request.ProfileVersionID, EmploymentDecision: EmploymentDecision}
+	if !request.From.IsZero() && !request.To.IsZero() && request.From.After(request.To) {
+		return Insight{}, ErrInvalid
+	}
+	insight := Insight{
+		ProfileVersionID:   request.ProfileVersionID,
+		Population:         []string{},
+		People:             []InsightPerson{},
+		EmploymentDecision: EmploymentDecision,
+	}
 	for _, subject := range subjects {
 		if subject.ProfileVersionID != request.ProfileVersionID {
 			continue
@@ -355,31 +370,61 @@ func BuildInsight(actor InsightActor, request InsightRequest, subjects []Insight
 		if request.Department != "" && subject.Department != request.Department {
 			continue
 		}
+		if request.RoleName != "" && subject.RoleName != request.RoleName {
+			continue
+		}
+		if !request.From.IsZero() && subject.AssessedAt.Before(request.From) {
+			continue
+		}
+		if !request.To.IsZero() && subject.AssessedAt.After(request.To) {
+			continue
+		}
 		if !insightVisible(actor, subject.PersonID) {
 			continue
 		}
 		if !RoleCovers(subject.Tenures, subject.PersonID, subject.RoleName, subject.AssessedAt) {
 			continue
 		}
-		person := InsightPerson{PersonID: subject.PersonID}
+		person := InsightPerson{PersonID: subject.PersonID, Department: subject.Department, RoleName: subject.RoleName}
 		for _, skill := range subject.Skills {
+			if request.Query != "" && !queryMatches(request.Query, subject, skill.SkillID) {
+				continue
+			}
 			classified, err := ClassifyGap(skill.SkillID, skill.RequiredProficiency, skill.Found, skill.CurrentLevel, skill.Gap)
 			if err != nil {
 				return Insight{}, err
 			}
 			person.Skills = append(person.Skills, classified)
 		}
+		if request.Query != "" && len(person.Skills) == 0 && !queryMatches(request.Query, subject, "") {
+			continue
+		}
 		insight.People = append(insight.People, person)
 		insight.Population = append(insight.Population, subject.PersonID)
 	}
+	insight.Summary = SummariseInsight(insight.People)
 	return insight, nil
 }
 
+func queryMatches(query string, subject InsightSubject, skillID string) bool {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return true
+	}
+	fields := []string{subject.PersonID, subject.RoleName, subject.Department, skillID}
+	for _, field := range fields {
+		if field != "" && strings.Contains(strings.ToLower(field), query) {
+			return true
+		}
+	}
+	return false
+}
+
 func authoriseInsight(actor InsightActor, request InsightRequest) error {
-	if hasRole(actor, "admin") {
+	if insightPrivileged(actor) {
 		return nil
 	}
-	if request.Department != "" {
+	if request.Department != "" && !hasRole(actor, "manager") {
 		return ErrForbidden
 	}
 	if hasRole(actor, "manager") {
@@ -394,8 +439,12 @@ func authoriseInsight(actor InsightActor, request InsightRequest) error {
 	return nil
 }
 
+func insightPrivileged(actor InsightActor) bool {
+	return hasRole(actor, "admin") || hasRole(actor, "hr") || hasRole(actor, "leader")
+}
+
 func insightVisible(actor InsightActor, personID string) bool {
-	if hasRole(actor, "admin") {
+	if insightPrivileged(actor) {
 		return true
 	}
 	if personID == actor.PersonID {

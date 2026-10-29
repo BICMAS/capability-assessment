@@ -7,12 +7,15 @@ import (
 )
 
 type Memory struct {
-	baseURL     string
-	mu          sync.Mutex
-	mappings    map[mappingKey]Mapping
-	pathways    map[pathwayKey]Pathway
-	byItem      map[string]pathwayKey
-	completions map[string]CompletionInput
+	baseURL         string
+	mu              sync.Mutex
+	mappings        map[mappingKey]Mapping
+	pathways        map[pathwayKey]Pathway
+	byItem          map[string]pathwayKey
+	completions     map[string]CompletionInput
+	resources       []Resource
+	recommendations []LearningRecommendation
+	practice        []PracticeRecord
 }
 
 type mappingKey struct {
@@ -29,11 +32,14 @@ type pathwayKey struct {
 
 func NewMemory(baseURL string) *Memory {
 	return &Memory{
-		baseURL:     baseURL,
-		mappings:    map[mappingKey]Mapping{},
-		pathways:    map[pathwayKey]Pathway{},
-		byItem:      map[string]pathwayKey{},
-		completions: map[string]CompletionInput{},
+		baseURL:         baseURL,
+		mappings:        map[mappingKey]Mapping{},
+		pathways:        map[pathwayKey]Pathway{},
+		byItem:          map[string]pathwayKey{},
+		completions:     map[string]CompletionInput{},
+		resources:       []Resource{},
+		recommendations: []LearningRecommendation{},
+		practice:        []PracticeRecord{},
 	}
 }
 
@@ -180,6 +186,113 @@ func (m *Memory) build(key pathwayKey, mapping Mapping) (Pathway, error) {
 		TargetLevel:    mapping.TargetLevel,
 		Items:          items,
 	}, nil
+}
+
+func (m *Memory) FindCourse(_ context.Context, organisationID, capabilityID string, targetLevel int) (Mapping, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	mapping, ok := m.mappings[mappingKey{OrganisationID: organisationID, CapabilityID: capabilityID, TargetLevel: targetLevel}]
+	if !ok {
+		return Mapping{}, ErrNotFound
+	}
+	return mapping, nil
+}
+
+func (m *Memory) SaveResource(_ context.Context, input ResourceInput) (Resource, error) {
+	if err := validateResource(input); err != nil {
+		return Resource{}, err
+	}
+	id, err := newID()
+	if err != nil {
+		return Resource{}, err
+	}
+	row := Resource{
+		ID: id, OrganisationID: input.OrganisationID, Title: strings.TrimSpace(input.Title),
+		SkillID: input.SkillID, TargetLevel: input.TargetLevel, Reference: strings.TrimSpace(input.Reference),
+		Rationale: strings.TrimSpace(input.Rationale),
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resources = append(m.resources, row)
+	return row, nil
+}
+
+func (m *Memory) ListResources(_ context.Context, organisationID string) ([]Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rows := make([]Resource, 0)
+	for _, row := range m.resources {
+		if row.OrganisationID == organisationID {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func (m *Memory) SaveRecommendation(_ context.Context, input LearningRecommendation) (LearningRecommendation, error) {
+	if input.OrganisationID == "" || input.PersonID == "" || input.SkillID == "" || input.Status != StatusRecommended || strings.TrimSpace(input.Activity) == "" {
+		return LearningRecommendation{}, ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, existing := range m.recommendations {
+		if existing.OrganisationID == input.OrganisationID && existing.PersonID == input.PersonID && existing.SkillID == input.SkillID && existing.IntendedLevel == input.IntendedLevel {
+			return existing, nil
+		}
+	}
+	id, err := newID()
+	if err != nil {
+		return LearningRecommendation{}, err
+	}
+	input.ID = id
+	m.recommendations = append(m.recommendations, input)
+	return input, nil
+}
+
+func (m *Memory) ListRecommendations(_ context.Context, organisationID, personID string) ([]LearningRecommendation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rows := make([]LearningRecommendation, 0)
+	for _, row := range m.recommendations {
+		if row.OrganisationID != organisationID {
+			continue
+		}
+		if personID != "" && row.PersonID != personID {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (m *Memory) SavePractice(_ context.Context, input PracticeInput) (PracticeRecord, error) {
+	if !input.Record || input.OrganisationID == "" || input.PersonID == "" || strings.TrimSpace(input.Feedback) == "" {
+		return PracticeRecord{}, ErrInvalid
+	}
+	id, err := newID()
+	if err != nil {
+		return PracticeRecord{}, err
+	}
+	row := PracticeRecord{
+		ID: id, OrganisationID: input.OrganisationID, PersonID: input.PersonID, ScenarioKey: input.ScenarioKey,
+		Message: input.Message, Feedback: input.Feedback, Recorded: true, Voice: VoiceUnconfigured,
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.practice = append(m.practice, row)
+	return row, nil
+}
+
+func (m *Memory) ListPractice(_ context.Context, organisationID, personID string) ([]PracticeRecord, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rows := make([]PracticeRecord, 0)
+	for _, row := range m.practice {
+		if row.OrganisationID == organisationID && (personID == "" || row.PersonID == personID) {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func validateMapping(input MappingInput) error {

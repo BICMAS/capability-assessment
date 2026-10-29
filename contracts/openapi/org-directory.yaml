@@ -131,7 +131,295 @@ paths:
           description: Missing or invalid token
         "403":
           description: Admin role required
+  /organograms:
+    get:
+      operationId: listOrganograms
+      summary: List organograms in the caller's organisation
+      description: Administrators, HR/L&D specialists, business leaders, and line managers can read the chart. Employees cannot.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organograms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organogram"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram read permission required
+    post:
+      operationId: createOrganogram
+      summary: Create an organogram
+      description: Administrators and HR/L&D specialists can create a chart. Positions reuse departments and people. They do not copy those records.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganogram"
+      responses:
+        "201":
+          description: Created organogram
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organogram"
+        "400":
+          description: The name is empty
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "409":
+          description: This organisation already has an organogram with that name
+  /organograms/{organogramId}/positions:
+    get:
+      operationId: listPositions
+      summary: List positions on one organogram
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+      responses:
+        "200":
+          description: Positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Position"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram read permission required
+        "404":
+          description: Organogram not found in this organisation
+    post:
+      operationId: createPosition
+      summary: Add a position to an organogram
+      description: A position may be vacant. departmentId, personId, and reportsToPositionId must belong to the same organisation and organogram when they are set.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePosition"
+      responses:
+        "201":
+          description: Created position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "400":
+          description: The title is empty or a referenced department, person, or position is not in this organisation
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "404":
+          description: Organogram not found in this organisation
+  /organograms/{organogramId}/publish:
+    post:
+      operationId: publishOrganogram
+      summary: Mark an organogram published
+      description: Administrators and HR/L&D specialists can publish a draft chart. Publishing does not copy positions into another service.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+      responses:
+        "200":
+          description: Published organogram
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organogram"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "404":
+          description: Organogram not found in this organisation
+  /organograms/{organogramId}/positions/{positionId}:
+    patch:
+      operationId: updatePosition
+      summary: Update a position and its reporting line
+      description: Rejects a reporting line that would create a cycle, and references that are outside this organisation or chart.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+        - $ref: "#/components/parameters/positionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePosition"
+      responses:
+        "200":
+          description: Updated position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "400":
+          description: The title is empty, a reference is unknown, or the reporting line is circular
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "404":
+          description: Position not found on this organogram
+    delete:
+      operationId: deletePosition
+      summary: Remove a position
+      description: Removal is refused while other positions still report to it.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+        - $ref: "#/components/parameters/positionId"
+      responses:
+        "204":
+          description: Position removed
+        "400":
+          description: Other positions still report to this one
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "404":
+          description: Position not found on this organogram
+  /organograms/{organogramId}/files:
+    get:
+      operationId: listOrganogramFiles
+      summary: List stored organogram files without their bytes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+      responses:
+        "200":
+          description: File records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganogramFile"
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram read permission required
+        "404":
+          description: Organogram not found in this organisation
+    post:
+      operationId: uploadOrganogramFile
+      summary: Store and validate an organogram file
+      description: PNG, JPG, and PDF files are stored for review and do not create positions. XLSX files import rows with a title, optional reports_to, and optional department. XLS files are stored and rejected until saved as XLSX. An image or PDF is never treated as an imported hierarchy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadOrganogramFile"
+      responses:
+        "201":
+          description: The file was stored. Inspect status, accepted, and rejected before treating rows as imported.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganogramImport"
+        "400":
+          description: The file type does not match its contents or the file name
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram maintenance permission required
+        "404":
+          description: Organogram not found in this organisation
+        "413":
+          description: The file is larger than 5 MB
+  /organograms/{organogramId}/files/{fileId}:
+    get:
+      operationId: readOrganogramFile
+      summary: Download one stored organogram file
+      description: The response is the file bytes. Callers must already be allowed to read organograms in this organisation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/organogramId"
+        - $ref: "#/components/parameters/fileId"
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram read permission required
+        "404":
+          description: File not found on this organogram
+  /organogram-template:
+    get:
+      operationId: downloadOrganogramTemplate
+      summary: Download the empty organogram spreadsheet template
+      description: The workbook contains the title, reports_to, and department headers and no sample positions.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: XLSX template
+          content:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Organogram read permission required
 components:
+  parameters:
+    organogramId:
+      name: organogramId
+      in: path
+      required: true
+      schema:
+        type: string
+    positionId:
+      name: positionId
+      in: path
+      required: true
+      schema:
+        type: string
+    fileId:
+      name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
   securitySchemes:
     bearerAuth:
       type: http
@@ -215,3 +503,143 @@ components:
           type: string
         title:
           type: string
+    Organogram:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, name, status, createdByPersonId, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [draft, published]
+        createdByPersonId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CreateOrganogram:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+    Position:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, organogramId, departmentId, title, personId, reportsToPositionId, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        organogramId:
+          type: string
+        departmentId:
+          type: string
+        title:
+          type: string
+        personId:
+          type: string
+        reportsToPositionId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CreatePosition:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        departmentId:
+          type: string
+        title:
+          type: string
+        personId:
+          type: string
+        reportsToPositionId:
+          type: string
+    UpdatePosition:
+      type: object
+      additionalProperties: false
+      required: [title, departmentId, personId, reportsToPositionId]
+      properties:
+        departmentId:
+          type: string
+        title:
+          type: string
+        personId:
+          type: string
+        reportsToPositionId:
+          type: string
+    OrganogramFile:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, organogramId, fileName, mediaType, byteSize, status, detail, createdByPersonId, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        organogramId:
+          type: string
+        fileName:
+          type: string
+        mediaType:
+          type: string
+        byteSize:
+          type: integer
+        status:
+          type: string
+          enum: [imported, rejected, needs_review]
+        detail:
+          type: string
+        createdByPersonId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    UploadOrganogramFile:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+        titleColumn:
+          type: string
+        reportsToColumn:
+          type: string
+        departmentColumn:
+          type: string
+    OrganogramImportRejection:
+      type: object
+      additionalProperties: false
+      required: [row, message]
+      properties:
+        row:
+          type: integer
+        message:
+          type: string
+    OrganogramImport:
+      type: object
+      additionalProperties: false
+      required: [file, accepted, rejected, headers]
+      properties:
+        file:
+          $ref: "#/components/schemas/OrganogramFile"
+        accepted:
+          type: integer
+        rejected:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganogramImportRejection"
+        headers:
+          type: array
+          items:
+            type: string

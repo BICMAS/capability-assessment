@@ -1747,15 +1747,31 @@ input[type="file"]::file-selector-button {
   font-size: clamp(2rem, 4vw, 3rem);
 }
 
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.breadcrumb li:not(:last-child)::after {
+  content: "/";
+  margin-left: 0.75rem;
+  color: #5c6558;
+}
+
 .workflow-nav {
-  background: #16324f;
-  color: #f3efe7;
-  padding: 0.75rem;
+  background: #10233c;
+  color: #f7f4ee;
+  border-radius: 16px;
+  padding: 0.85rem;
 }
 
 .workflow-nav ol {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.5rem;
   list-style: none;
   margin: 0;
@@ -1765,13 +1781,70 @@ input[type="file"]::file-selector-button {
 .workflow-nav a,
 .workflow-nav span {
   color: inherit;
-  display: inline-block;
-  padding: 0.35rem 0.55rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem;
+  align-items: start;
+  min-height: 100%;
+  padding: 0.55rem;
+  border-radius: 12px;
   text-decoration: none;
 }
 
-.workflow-nav a[aria-current="step"] {
+.workflow-nav a:focus-visible,
+.workflow-nav span:focus-visible {
+  outline: 2px solid #f7f4ee;
+  outline-offset: 2px;
+}
+
+.workflow-index {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
   background: #1d4f91;
+  font-size: 0.85rem;
+}
+
+.workflow-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.workflow-title {
+  font-weight: 650;
+}
+
+.workflow-summary,
+.workflow-state {
+  color: #d5deea;
+  font-size: 0.82rem;
+}
+
+.workflow-nav [data-state="active"] a,
+.workflow-nav [data-state="active"] span {
+  background: #1d4f91;
+}
+
+.workflow-nav [data-tone="ai"] .workflow-index {
+  background: #6d4ea8;
+}
+
+.workflow-nav [data-tone="attention"] .workflow-index {
+  background: #a16207;
+}
+
+.workflow-nav [data-state="completed"] .workflow-index {
+  background: #1f7a62;
+}
+
+.workflow-nav [data-state="blocked"] {
+  opacity: 0.72;
+}
+
+.workflow-nav [data-state="pending"] .workflow-index {
+  background: #31557d;
 }
 
 .role-profile button.primary {
@@ -1957,9 +2030,138 @@ input[type="file"]::file-selector-button {
   gap: 0.35rem;
 }
 
-@media (max-width: 720px) {
+.role-profile .role-missing,
+.role-profile .mock-banner,
+.role-profile .skill-suggestion {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #f8f1e3;
+  color: #3d3424;
+}
+
+.role-profile .skill-suggestion {
+  background: #eef3f8;
+  color: #1d3348;
+}
+
+.role-profile .skill-tabs,
+.role-profile .skill-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.role-profile .skill-tabs button[aria-selected="true"] {
+  background: #1d4f91;
+  color: #fffcf7;
+}
+
+.role-profile .skills-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.role-profile .skills-table th,
+.role-profile .skills-table td {
+  border-bottom: 1px solid #d5deea;
+  padding: 0.55rem 0.4rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.role-profile .skill-card {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d5deea;
+  background: #fff;
+}
+
+.role-profile .approval-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.role-profile .approval-queue li {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d5deea;
+  background: #fff;
+}
+
+.insight-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.insight-panel th,
+.insight-panel td {
+  border-bottom: 1px solid #ddd4c6;
+  padding: 0.55rem 0.4rem;
+  text-align: left;
+}
+
+.nav-role {
+  margin: 0.15rem 0 0.45rem;
+  color: #5c6558;
+  font-size: 0.85rem;
+}
+
+.chart-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chart-modes a[aria-current="true"] {
+  background: #1d4f91;
+  color: #fffcf7;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+}
+
+.chart-drop {
+  border: 1px dashed #1d4f91;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #f7f8fb;
+}
+
+.chart-tree,
+.chart-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.chart-node {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: center;
+  margin: 0.4rem 0;
+}
+
+.chart-confirm {
+  border: 1px solid #ddd4c6;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.chart-editor-bar,
+.chart-template,
+.chart-upload {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
   .workflow-nav ol {
-    display: grid;
+    grid-template-columns: 1fr;
   }
 }
 

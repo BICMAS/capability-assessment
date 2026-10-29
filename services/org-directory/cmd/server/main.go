@@ -15,7 +15,6 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/bicmas-academy/learn/services/httpserver"
-	"github.com/bicmas-academy/learn/services/org-directory/db"
 	"github.com/bicmas-academy/learn/services/org-directory/directory"
 	"github.com/bicmas-academy/learn/services/org-directory/events"
 	"github.com/bicmas-academy/learn/services/org-directory/health"
@@ -67,7 +66,7 @@ func run(logger *slog.Logger) error {
 	if natsURL == "" {
 		return errors.New("NATS_URL is required")
 	}
-	store := directory.NewSQLStore(db.New(database))
+	store := directory.NewSQLStore(database)
 	publisher, err := events.Open(ctx, natsURL)
 	if err != nil {
 		return fmt.Errorf("open nats: %w", err)
@@ -80,7 +79,7 @@ func run(logger *slog.Logger) error {
 	timeouts := httpserver.StandardTimeouts()
 	handler := httpserver.Wrap(directory.NewRouter(func(ctx context.Context) error {
 		return checkDatabase(ctx, database, databaseName)
-	}, []byte(secret), store, publisher), health.ServiceName, logger, httpserver.DefaultMaxBodyBytes)
+	}, []byte(secret), store, publisher), health.ServiceName, logger, httpserver.UploadMaxBodyBytes)
 	server := httpserver.New(listenAddr(), handler, timeouts)
 	logger.Info("configured", "service", health.ServiceName, "addr", server.Addr, "database", databaseName)
 	return httpserver.ListenAndServe(server, logger, health.ServiceName, timeouts.ShutdownTimeout)

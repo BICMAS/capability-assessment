@@ -150,12 +150,23 @@ SELECT
     region,
     team_size,
     reporting_level,
+    organogram_id,
+    position_id,
+    business_unit,
+    sub_industry,
+    organisational_context,
     framework_version_id,
     ai_draft,
     ai_model,
     ai_source_context_version,
     ai_generated_at,
-    created_at
+    created_at,
+    submitted_at,
+    submitted_by_person_id,
+    submission_cycle,
+    workflow_stage,
+    approved_at,
+    approved_by_person_id
 FROM role_profile_versions
 WHERE organisation_id = $1 AND id = $2
 `
@@ -183,12 +194,23 @@ func (q *Queries) GetRoleProfileVersion(ctx context.Context, arg GetRoleProfileV
 		&i.Region,
 		&i.TeamSize,
 		&i.ReportingLevel,
+		&i.OrganogramID,
+		&i.PositionID,
+		&i.BusinessUnit,
+		&i.SubIndustry,
+		&i.OrganisationalContext,
 		&i.FrameworkVersionID,
 		&i.AiDraft,
 		&i.AiModel,
 		&i.AiSourceContextVersion,
 		&i.AiGeneratedAt,
 		&i.CreatedAt,
+		&i.SubmittedAt,
+		&i.SubmittedByPersonID,
+		&i.SubmissionCycle,
+		&i.WorkflowStage,
+		&i.ApprovedAt,
+		&i.ApprovedByPersonID,
 	)
 	return i, err
 }
@@ -328,6 +350,49 @@ func (q *Queries) InsertRoleProfileComment(ctx context.Context, arg InsertRolePr
 	return err
 }
 
+const insertRoleProfileReviewChange = `-- name: InsertRoleProfileReviewChange :exec
+INSERT INTO role_profile_review_changes (
+    id,
+    organisation_id,
+    role_profile_id,
+    profile_version_id,
+    skill_assignment_id,
+    actor_person_id,
+    fields,
+    rationale,
+    occurred_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+`
+
+type InsertRoleProfileReviewChangeParams struct {
+	ID                string
+	OrganisationID    string
+	RoleProfileID     string
+	ProfileVersionID  string
+	SkillAssignmentID string
+	ActorPersonID     string
+	Fields            string
+	Rationale         string
+	OccurredAt        time.Time
+}
+
+func (q *Queries) InsertRoleProfileReviewChange(ctx context.Context, arg InsertRoleProfileReviewChangeParams) error {
+	_, err := q.db.ExecContext(ctx, insertRoleProfileReviewChange,
+		arg.ID,
+		arg.OrganisationID,
+		arg.RoleProfileID,
+		arg.ProfileVersionID,
+		arg.SkillAssignmentID,
+		arg.ActorPersonID,
+		arg.Fields,
+		arg.Rationale,
+		arg.OccurredAt,
+	)
+	return err
+}
+
 const insertRoleProfileSkill = `-- name: InsertRoleProfileSkill :exec
 INSERT INTO role_profile_skills (
     id,
@@ -339,10 +404,14 @@ INSERT INTO role_profile_skills (
     required_proficiency,
     priority,
     rationale,
+    criteria,
+    display_name,
     provenance,
-    position
+    position,
+    created_at,
+    updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 `
 
@@ -356,8 +425,12 @@ type InsertRoleProfileSkillParams struct {
 	RequiredProficiency int32
 	Priority            string
 	Rationale           string
+	Criteria            string
+	DisplayName         string
 	Provenance          string
 	Position            int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (q *Queries) InsertRoleProfileSkill(ctx context.Context, arg InsertRoleProfileSkillParams) error {
@@ -371,15 +444,19 @@ func (q *Queries) InsertRoleProfileSkill(ctx context.Context, arg InsertRoleProf
 		arg.RequiredProficiency,
 		arg.Priority,
 		arg.Rationale,
+		arg.Criteria,
+		arg.DisplayName,
 		arg.Provenance,
 		arg.Position,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
 
 const insertRoleProfileSource = `-- name: InsertRoleProfileSource :exec
-INSERT INTO role_profile_sources (id, organisation_id, profile_version_id, title, reference_uri)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO role_profile_sources (id, organisation_id, profile_version_id, title, reference_uri, kind, body, origin)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertRoleProfileSourceParams struct {
@@ -388,6 +465,9 @@ type InsertRoleProfileSourceParams struct {
 	ProfileVersionID string
 	Title            string
 	ReferenceUri     string
+	Kind             string
+	Body             string
+	Origin           string
 }
 
 func (q *Queries) InsertRoleProfileSource(ctx context.Context, arg InsertRoleProfileSourceParams) error {
@@ -397,6 +477,9 @@ func (q *Queries) InsertRoleProfileSource(ctx context.Context, arg InsertRolePro
 		arg.ProfileVersionID,
 		arg.Title,
 		arg.ReferenceUri,
+		arg.Kind,
+		arg.Body,
+		arg.Origin,
 	)
 	return err
 }
@@ -417,6 +500,11 @@ INSERT INTO role_profile_versions (
     region,
     team_size,
     reporting_level,
+    organogram_id,
+    position_id,
+    business_unit,
+    sub_industry,
+    organisational_context,
     framework_version_id,
     ai_draft,
     ai_model,
@@ -424,7 +512,7 @@ INSERT INTO role_profile_versions (
     ai_generated_at,
     created_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
 )
 `
 
@@ -443,6 +531,11 @@ type InsertRoleProfileVersionParams struct {
 	Region                 string
 	TeamSize               sql.NullInt32
 	ReportingLevel         string
+	OrganogramID           string
+	PositionID             string
+	BusinessUnit           string
+	SubIndustry            string
+	OrganisationalContext  string
 	FrameworkVersionID     sql.NullString
 	AiDraft                string
 	AiModel                string
@@ -467,6 +560,11 @@ func (q *Queries) InsertRoleProfileVersion(ctx context.Context, arg InsertRolePr
 		arg.Region,
 		arg.TeamSize,
 		arg.ReportingLevel,
+		arg.OrganogramID,
+		arg.PositionID,
+		arg.BusinessUnit,
+		arg.SubIndustry,
+		arg.OrganisationalContext,
 		arg.FrameworkVersionID,
 		arg.AiDraft,
 		arg.AiModel,
@@ -596,6 +694,59 @@ func (q *Queries) ListRoleProfileComments(ctx context.Context, arg ListRoleProfi
 	return items, nil
 }
 
+const listRoleProfileReviewChanges = `-- name: ListRoleProfileReviewChanges :many
+SELECT id, profile_version_id, skill_assignment_id, actor_person_id, fields, rationale, occurred_at
+FROM role_profile_review_changes
+WHERE organisation_id = $1 AND role_profile_id = $2
+ORDER BY occurred_at ASC, id ASC
+`
+
+type ListRoleProfileReviewChangesParams struct {
+	OrganisationID string
+	RoleProfileID  string
+}
+
+type ListRoleProfileReviewChangesRow struct {
+	ID                string
+	ProfileVersionID  string
+	SkillAssignmentID string
+	ActorPersonID     string
+	Fields            string
+	Rationale         string
+	OccurredAt        time.Time
+}
+
+func (q *Queries) ListRoleProfileReviewChanges(ctx context.Context, arg ListRoleProfileReviewChangesParams) ([]ListRoleProfileReviewChangesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRoleProfileReviewChanges, arg.OrganisationID, arg.RoleProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRoleProfileReviewChangesRow
+	for rows.Next() {
+		var i ListRoleProfileReviewChangesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileVersionID,
+			&i.SkillAssignmentID,
+			&i.ActorPersonID,
+			&i.Fields,
+			&i.Rationale,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoleProfileSkills = `-- name: ListRoleProfileSkills :many
 SELECT
     a.id,
@@ -606,8 +757,12 @@ SELECT
     a.required_proficiency,
     a.priority,
     a.rationale,
+    a.criteria,
+    a.display_name,
     a.provenance,
-    a.position
+    a.position,
+    a.created_at,
+    a.updated_at
 FROM role_profile_skills a
 JOIN canonical_skills s ON s.id = a.skill_id AND s.organisation_id = a.organisation_id
 WHERE a.organisation_id = $1 AND a.profile_version_id = $2
@@ -628,8 +783,12 @@ type ListRoleProfileSkillsRow struct {
 	RequiredProficiency int32
 	Priority            string
 	Rationale           string
+	Criteria            string
+	DisplayName         string
 	Provenance          string
 	Position            int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (q *Queries) ListRoleProfileSkills(ctx context.Context, arg ListRoleProfileSkillsParams) ([]ListRoleProfileSkillsRow, error) {
@@ -650,8 +809,12 @@ func (q *Queries) ListRoleProfileSkills(ctx context.Context, arg ListRoleProfile
 			&i.RequiredProficiency,
 			&i.Priority,
 			&i.Rationale,
+			&i.Criteria,
+			&i.DisplayName,
 			&i.Provenance,
 			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -667,7 +830,7 @@ func (q *Queries) ListRoleProfileSkills(ctx context.Context, arg ListRoleProfile
 }
 
 const listRoleProfileSources = `-- name: ListRoleProfileSources :many
-SELECT id, title, reference_uri
+SELECT id, title, reference_uri, kind, body, origin
 FROM role_profile_sources
 WHERE organisation_id = $1 AND profile_version_id = $2
 ORDER BY title ASC, id ASC
@@ -682,6 +845,9 @@ type ListRoleProfileSourcesRow struct {
 	ID           string
 	Title        string
 	ReferenceUri string
+	Kind         string
+	Body         string
+	Origin       string
 }
 
 func (q *Queries) ListRoleProfileSources(ctx context.Context, arg ListRoleProfileSourcesParams) ([]ListRoleProfileSourcesRow, error) {
@@ -693,7 +859,14 @@ func (q *Queries) ListRoleProfileSources(ctx context.Context, arg ListRoleProfil
 	var items []ListRoleProfileSourcesRow
 	for rows.Next() {
 		var i ListRoleProfileSourcesRow
-		if err := rows.Scan(&i.ID, &i.Title, &i.ReferenceUri); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.ReferenceUri,
+			&i.Kind,
+			&i.Body,
+			&i.Origin,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -866,25 +1039,35 @@ SET
     region = $8,
     team_size = $9,
     reporting_level = $10,
+    organogram_id = $11,
+    position_id = $12,
+    business_unit = $13,
+    sub_industry = $14,
+    organisational_context = $15,
     revision = revision + 1
 WHERE id = $1
   AND organisation_id = $2
-  AND revision = $11
+  AND revision = $16
   AND status = 'profile_draft'
 `
 
 type UpdateRoleProfileContextParams struct {
-	ID               string
-	OrganisationID   string
-	Purpose          string
-	Responsibilities string
-	BusinessOutcomes string
-	DecisionScope    string
-	Industry         string
-	Region           string
-	TeamSize         sql.NullInt32
-	ReportingLevel   string
-	Revision         int32
+	ID                    string
+	OrganisationID        string
+	Purpose               string
+	Responsibilities      string
+	BusinessOutcomes      string
+	DecisionScope         string
+	Industry              string
+	Region                string
+	TeamSize              sql.NullInt32
+	ReportingLevel        string
+	OrganogramID          string
+	PositionID            string
+	BusinessUnit          string
+	SubIndustry           string
+	OrganisationalContext string
+	Revision              int32
 }
 
 func (q *Queries) UpdateRoleProfileContext(ctx context.Context, arg UpdateRoleProfileContextParams) (int64, error) {
@@ -899,6 +1082,11 @@ func (q *Queries) UpdateRoleProfileContext(ctx context.Context, arg UpdateRolePr
 		arg.Region,
 		arg.TeamSize,
 		arg.ReportingLevel,
+		arg.OrganogramID,
+		arg.PositionID,
+		arg.BusinessUnit,
+		arg.SubIndustry,
+		arg.OrganisationalContext,
 		arg.Revision,
 	)
 	if err != nil {
@@ -910,11 +1098,15 @@ func (q *Queries) UpdateRoleProfileContext(ctx context.Context, arg UpdateRolePr
 const updateRoleProfileSkill = `-- name: UpdateRoleProfileSkill :exec
 UPDATE role_profile_skills
 SET
-    definition = $4,
-    required_proficiency = $5,
-    priority = $6,
-    rationale = $7,
-    provenance = $8
+    category = $4,
+    definition = $5,
+    required_proficiency = $6,
+    priority = $7,
+    rationale = $8,
+    criteria = $9,
+    display_name = $10,
+    provenance = $11,
+    updated_at = $12
 WHERE id = $1
   AND organisation_id = $2
   AND profile_version_id = $3
@@ -924,11 +1116,15 @@ type UpdateRoleProfileSkillParams struct {
 	ID                  string
 	OrganisationID      string
 	ProfileVersionID    string
+	Category            string
 	Definition          string
 	RequiredProficiency int32
 	Priority            string
 	Rationale           string
+	Criteria            string
+	DisplayName         string
 	Provenance          string
+	UpdatedAt           time.Time
 }
 
 func (q *Queries) UpdateRoleProfileSkill(ctx context.Context, arg UpdateRoleProfileSkillParams) error {
@@ -936,18 +1132,22 @@ func (q *Queries) UpdateRoleProfileSkill(ctx context.Context, arg UpdateRoleProf
 		arg.ID,
 		arg.OrganisationID,
 		arg.ProfileVersionID,
+		arg.Category,
 		arg.Definition,
 		arg.RequiredProficiency,
 		arg.Priority,
 		arg.Rationale,
+		arg.Criteria,
+		arg.DisplayName,
 		arg.Provenance,
+		arg.UpdatedAt,
 	)
 	return err
 }
 
 const updateRoleProfileSkillPosition = `-- name: UpdateRoleProfileSkillPosition :exec
 UPDATE role_profile_skills
-SET position = $4
+SET position = $4, updated_at = $5
 WHERE id = $1 AND organisation_id = $2 AND profile_version_id = $3
 `
 
@@ -956,6 +1156,7 @@ type UpdateRoleProfileSkillPositionParams struct {
 	OrganisationID   string
 	ProfileVersionID string
 	Position         int32
+	UpdatedAt        time.Time
 }
 
 func (q *Queries) UpdateRoleProfileSkillPosition(ctx context.Context, arg UpdateRoleProfileSkillPositionParams) error {
@@ -964,6 +1165,7 @@ func (q *Queries) UpdateRoleProfileSkillPosition(ctx context.Context, arg Update
 		arg.OrganisationID,
 		arg.ProfileVersionID,
 		arg.Position,
+		arg.UpdatedAt,
 	)
 	return err
 }

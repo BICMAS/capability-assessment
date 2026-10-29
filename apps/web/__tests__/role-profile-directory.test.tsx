@@ -56,13 +56,16 @@ describe("role profile directory", () => {
     expect(screen.queryByRole("navigation", { name: "Role profile workflow" })).toBeNull();
   });
 
-  it("shows the workflow only after a profile exists", () => {
+  it("shows the seven-stage workflow before a profile exists", () => {
     const { rerender } = render(
-      <RoleProfileFrame current="directory">
+      <RoleProfileFrame current="organogram">
         <p>Directory</p>
       </RoleProfileFrame>,
     );
-    expect(screen.queryByRole("navigation", { name: "Role profile workflow" })).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Role skills workflow" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Upload Organogram/ }).getAttribute("aria-current")).toBe("step");
+    expect(screen.queryByRole("link", { name: /Provide Role Information/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Use the Insights/ })).toBeNull();
 
     rerender(
       <RoleProfileFrame
@@ -101,7 +104,10 @@ describe("role profile directory", () => {
       </RoleProfileFrame>,
     );
 
-    expect(screen.getByRole("navigation", { name: "Role profile workflow" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Role skills workflow" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Area Sales Manager" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Provide Role Information/ }).getAttribute("href")).toBe("/admin/role-profiles/profile-1/context");
+    expect(screen.getByRole("link", { name: /Review and Customise Skills/ }).getAttribute("aria-current")).toBe("step");
+    expect(screen.queryByRole("link", { name: /Use the Insights/ })).toBeNull();
   });
 });

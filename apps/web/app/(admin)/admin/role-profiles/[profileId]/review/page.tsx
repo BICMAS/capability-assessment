@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { RoleProfileFrame } from "@/features/role-profiles/frame";
+import { WorkflowShell } from "@/features/role-profiles/frame";
 import { ProfileLoadError } from "@/features/role-profiles/load-error";
 import { ReviewPanel } from "@/features/role-profiles/review-panel";
-import { listRoleProfileVersions, readRoleProfile, readRoleProfileHistory } from "@/lib/role-profile";
+import { listRoleProfileVersions, readRoleProfile, readRoleProfileHistory, listRoleProfileApprovals } from "@/lib/role-profile";
 import { settle } from "@/lib/safe";
 import { SESSION_COOKIE } from "@/lib/session";
 
@@ -25,14 +25,15 @@ export default async function ReviewPage({
   const query = await searchParams;
   try {
     const profile = await readRoleProfile(token, profileId);
-    const [history, versions] = await Promise.all([
+    const [history, versions, approvals] = await Promise.all([
       settle(readRoleProfileHistory(token, profile.id), "Review history"),
       settle(listRoleProfileVersions(token, profile.id), "Earlier versions"),
+      settle(listRoleProfileApprovals(token, profile.version.id), "Approval record"),
     ]);
     return (
-      <RoleProfileFrame profile={profile} current="review" error={query.error ?? ""} notice={query.notice ?? ""}>
-        <ReviewPanel profile={profile} history={history} versions={versions} />
-      </RoleProfileFrame>
+      <WorkflowShell token={token} profile={profile} current="approve" error={query.error ?? ""} notice={query.notice ?? ""}>
+        <ReviewPanel profile={profile} history={history} versions={versions} approvals={approvals} />
+      </WorkflowShell>
     );
   } catch (error) {
     return <ProfileLoadError error={error} />;

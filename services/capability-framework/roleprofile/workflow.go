@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Limits struct {
@@ -39,6 +40,7 @@ func DefaultLimits() Limits {
 
 type profileAI interface {
 	GetVersion(ctx context.Context, organisationID, versionID string) (Version, error)
+	GetProfile(ctx context.Context, organisationID, profileID string) (Profile, error)
 	UpdateContext(ctx context.Context, organisationID, versionID, actorID string, expected int, details Context) (Version, error)
 	ListCanonicalSkills(ctx context.Context, organisationID string) ([]Skill, error)
 	EnsureContext(ctx context.Context, organisationID, versionID, actorID string) (ContextRecord, error)
@@ -51,7 +53,7 @@ type profileAI interface {
 	ClaimGenerationJobs(ctx context.Context, limit int, lease time.Duration) ([]Job, error)
 	SaveGenerationJob(ctx context.Context, job Job) error
 	CountGenerationJobs(ctx context.Context, organisationID string, since time.Time) (int, error)
-	ApplyGeneratedDraft(ctx context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft) (Version, error)
+	ApplyGeneratedDraft(ctx context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft, replace bool) (Version, error)
 }
 
 type GeneratedDraft struct {
@@ -135,16 +137,20 @@ func (w *Workflow) Clarify(ctx context.Context, organisationID, versionID, actor
 		return w.session(record, questions), nil
 	}
 	if hasCriticalMissing(gaps) {
-		return w.addQuestions(ctx, organisationID, actorID, record, questions, round+1, deterministicQuestions(gaps))
+		return w.addQuestions(ctx, organisationID, actorID, record, questions, round+1, deterministicQuestions(gaps, record.Snapshot))
 	}
-	drafts := deterministicQuestions(ambiguousGaps(gaps))
+	drafts := deterministicQuestions(ambiguousGaps(gaps), record.Snapshot)
 	if w.provider != nil && len(drafts) > 0 {
 		fields := make([]string, 0, len(drafts))
 		for _, draft := range drafts {
 			fields = append(fields, draft.Field)
 		}
 		modelQuestions, err := w.provider.Clarify(ctx, record.Snapshot, fields)
-		if err == nil {
+		if err != nil {
+			for i := range drafts {
+				drafts[i].AuthoredBy = QuestionModelUnavailable
+			}
+		} else {
 			drafts = mergeQuestions(drafts, modelQuestions)
 		}
 	}
@@ -173,7 +179,7 @@ func (w *Workflow) Answer(ctx context.Context, organisationID, versionID, actorI
 	accepted := make([]AnswerInput, 0, len(answers))
 	for _, answer := range answers {
 		question, ok := findQuestion(questions, answer.QuestionID)
-		if !ok || question.AnsweredAt != nil {
+		if !ok || (question.AnsweredAt != nil && strings.TrimSpace(answer.Value) == "") {
 			return Session{}, ErrInvalid
 		}
 		updated, err := applyAnswer(snapshot, question.Field, answer.Value)
@@ -202,7 +208,7 @@ func (w *Workflow) Answer(ctx context.Context, organisationID, versionID, actorI
 	return w.Clarify(ctx, organisationID, versionID, actorID)
 }
 
-func (w *Workflow) Enqueue(ctx context.Context, organisationID, versionID, actorID, idempotencyKey string, contextVersion int) (Job, error) {
+func (w *Workflow) Enqueue(ctx context.Context, organisationID, versionID, actorID, idempotencyKey string, contextVersion int, replace bool) (Job, error) {
 	if w.provider == nil {
 		return Job{}, ErrUnavailable
 	}
@@ -236,6 +242,9 @@ func (w *Workflow) Enqueue(ctx context.Context, organisationID, versionID, actor
 	} else if !errors.Is(err, ErrNotFound) {
 		return Job{}, err
 	}
+	if !replace && draftExists(version) {
+		return Job{}, ErrConflict
+	}
 	since := time.Now().UTC().Truncate(24 * time.Hour)
 	count, err := w.store.CountGenerationJobs(ctx, organisationID, since)
 	if err != nil {
@@ -244,11 +253,11 @@ func (w *Workflow) Enqueue(ctx context.Context, organisationID, versionID, actor
 	if count >= w.limits.TenantDailyJobs {
 		return Job{}, ErrBudget
 	}
-	taxonomy, err := w.store.ListCanonicalSkills(ctx, organisationID)
+	inputValue, err := w.generationInput(ctx, organisationID, version.ProfileID, record.Snapshot)
 	if err != nil {
 		return Job{}, err
 	}
-	input, err := json.Marshal(GenerationInput{PromptVersion: PromptVersion, Snapshot: record.Snapshot, Taxonomy: taxonomy})
+	input, err := json.Marshal(inputValue)
 	if err != nil {
 		return Job{}, err
 	}
@@ -259,6 +268,7 @@ func (w *Workflow) Enqueue(ctx context.Context, organisationID, versionID, actor
 		ContextVersion:   record.Version,
 		ContextHash:      record.Hash,
 		IdempotencyKey:   idempotencyKey,
+		ReplaceExisting:  replace,
 		Status:           JobQueued,
 		ModelID:          w.provider.ModelID(),
 		PromptVersion:    PromptVersion,
@@ -356,12 +366,17 @@ func (w *Workflow) process(ctx context.Context, job Job) {
 		w.finish(ctx, job, JobStale, "stale_context", nil)
 		return
 	}
-	taxonomy, err := w.store.ListCanonicalSkills(ctx, job.OrganisationID)
+	version, err := w.store.GetVersion(ctx, job.OrganisationID, job.ProfileVersionID)
 	if err != nil {
-		w.finish(ctx, job, JobFailed, "taxonomy", nil)
+		w.finish(ctx, job, JobFailed, "context", nil)
 		return
 	}
-	input := GenerationInput{PromptVersion: job.PromptVersion, Snapshot: record.Snapshot, Taxonomy: taxonomy}
+	input, err := w.generationInput(ctx, job.OrganisationID, version.ProfileID, record.Snapshot)
+	if err != nil {
+		w.finish(ctx, job, JobFailed, "profile", nil)
+		return
+	}
+	input.PromptVersion = job.PromptVersion
 	var result ProviderResult
 	started := time.Now()
 	genCtx, stop := context.WithCancel(ctx)
@@ -395,7 +410,7 @@ func (w *Workflow) process(ctx context.Context, job Job) {
 		w.finish(ctx, job, JobFailed, "limit", nil)
 		return
 	}
-	accepted, unsupported, uncertainty, err := validateGenerated(result.Body, taxonomy)
+	accepted, unsupported, uncertainty, err := validateGenerated(result.Body, input.Taxonomy)
 	job.Result = append(json.RawMessage{}, result.Body...)
 	job.OutputHash = hashBytes(result.Body)
 	job.PromptTokens = result.Usage.PromptTokens
@@ -428,7 +443,7 @@ func (w *Workflow) process(ctx context.Context, job Job) {
 		GeneratedAt:          clock(),
 		Purpose:              record.Snapshot.Purpose,
 		Skills:               accepted,
-	}); err != nil {
+	}, job.ReplaceExisting); err != nil {
 		w.finish(ctx, job, JobFailed, "attach", nil)
 		return
 	}
@@ -458,6 +473,10 @@ func (w *Workflow) addQuestions(ctx context.Context, organisationID, actorID str
 		if err != nil {
 			return Session{}, err
 		}
+		authored := draft.AuthoredBy
+		if authored == "" {
+			authored = QuestionService
+		}
 		questions = append(questions, Question{
 			ID:               id,
 			ProfileVersionID: record.ProfileVersionID,
@@ -466,6 +485,7 @@ func (w *Workflow) addQuestions(ctx context.Context, organisationID, actorID str
 			Field:            draft.Field,
 			Question:         prompt,
 			Critical:         critical,
+			AuthoredBy:       authored,
 			AskedActorID:     actorID,
 			AskedAt:          now,
 		})
@@ -482,6 +502,8 @@ func (w *Workflow) session(record ContextRecord, questions []Question) Session {
 		if questions[i].Critical && questions[i].AnsweredAt != nil && fieldValue(record.Snapshot, questions[i].Field) == "" {
 			questions[i].Unresolved = true
 		}
+		questions[i].Reason = questionReason(questions[i].Field, record.Snapshot)
+		questions[i].Options = questionOptions(questions[i].Field)
 	}
 	copied := append([]Question{}, questions...)
 	if copied == nil {
@@ -524,6 +546,7 @@ func validateGenerated(raw []byte, taxonomy []Skill) ([]GeneratedSkill, []Unsupp
 		kinds[skill.Kind] = struct{}{}
 		skill.Definition = strings.TrimSpace(skill.Definition)
 		skill.Rationale = strings.TrimSpace(skill.Rationale)
+		skill.Criteria = strings.TrimSpace(skill.Criteria)
 		skill.Uncertainty = strings.TrimSpace(skill.Uncertainty)
 		accepted = append(accepted, skill)
 	}
@@ -565,7 +588,30 @@ func skillProblem(skill GeneratedSkill, known map[string]Skill, seen map[string]
 	if _, ok := seen[skill.SkillID]; ok {
 		return "duplicate"
 	}
+	if utf8.RuneCountInString(strings.TrimSpace(skill.Criteria)) > 2000 {
+		return "criteria"
+	}
 	return ""
+}
+
+func (w *Workflow) generationInput(ctx context.Context, organisationID, profileID string, snapshot ContextSnapshot) (GenerationInput, error) {
+	profile, err := w.store.GetProfile(ctx, organisationID, profileID)
+	if err != nil {
+		return GenerationInput{}, err
+	}
+	taxonomy, err := w.store.ListCanonicalSkills(ctx, organisationID)
+	if err != nil {
+		return GenerationInput{}, err
+	}
+	name := strings.TrimSpace(profile.RoleName)
+	if name == "" {
+		return GenerationInput{}, ErrInvalid
+	}
+	return GenerationInput{PromptVersion: PromptVersion, RoleName: name, Snapshot: snapshot, Taxonomy: taxonomy}, nil
+}
+
+func draftExists(version Version) bool {
+	return len(version.Skills) > 0 || len(version.AI.Draft) > 0 || version.AI.GeneratedAt != nil
 }
 
 func kindAgrees(kind, category string) bool {
@@ -581,14 +627,14 @@ func kindAgrees(kind, category string) bool {
 	}
 }
 
-func deterministicQuestions(gaps []fieldGap) []QuestionDraft {
+func deterministicQuestions(gaps []fieldGap, snapshot ContextSnapshot) []QuestionDraft {
 	drafts := make([]QuestionDraft, 0)
 	for _, gap := range gaps {
-		prompt, ok := questionFor(gap.field)
+		prompt, ok := questionFor(gap.field, snapshot)
 		if !ok {
 			continue
 		}
-		drafts = append(drafts, QuestionDraft{Field: gap.field, Question: prompt})
+		drafts = append(drafts, QuestionDraft{Field: gap.field, Question: prompt, AuthoredBy: QuestionService})
 	}
 	return drafts
 }
@@ -690,16 +736,18 @@ func mergeQuestions(base []QuestionDraft, extra []QuestionDraft) []QuestionDraft
 	}
 	for _, draft := range extra {
 		index, ok := allowed[draft.Field]
-		if !ok || strings.TrimSpace(draft.Question) == "" {
+		cleaned := strings.TrimSpace(draft.Question)
+		if !ok || cleaned == "" || len([]rune(cleaned)) > 500 {
 			continue
 		}
-		base[index].Question = strings.TrimSpace(draft.Question)
+		base[index].Question = cleaned
+		base[index].AuthoredBy = QuestionModel
 	}
 	return base
 }
 
 func questionMeta(field, question string) (string, bool) {
-	fallback, _ := questionFor(field)
+	fallback, _ := questionFor(field, ContextSnapshot{})
 	critical := false
 	for _, gap := range contextGaps(ContextSnapshot{}) {
 		if gap.field == field {

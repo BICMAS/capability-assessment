@@ -80,9 +80,9 @@ func run(logger *slog.Logger) error {
 	defer publisher.Close()
 	store := framework.NewSQLStore(database)
 	profiles := roleprofile.NewSQLStore(database)
-	var provider roleprofile.Provider
-	if key := strings.TrimSpace(os.Getenv("ROLE_PROFILE_MODEL_API_KEY")); key != "" {
-		provider = roleprofile.HTTPProvider{APIKey: key, Model: os.Getenv("ROLE_PROFILE_MODEL_NAME"), Endpoint: os.Getenv("ROLE_PROFILE_MODEL_URL")}
+	provider, err := roleprofile.SelectProvider(os.Getenv("APP_ENV"), os.Getenv("ROLE_PROFILE_MODEL_MODE"), os.Getenv("ROLE_PROFILE_MODEL_API_KEY"), os.Getenv("ROLE_PROFILE_MODEL_NAME"), os.Getenv("ROLE_PROFILE_MODEL_URL"))
+	if err != nil {
+		return err
 	}
 	profileWorkflow := roleprofile.NewWorkflow(profiles, provider, roleprofile.DefaultLimits(), logger)
 	relayCtx, stopRelay := context.WithCancel(context.Background())

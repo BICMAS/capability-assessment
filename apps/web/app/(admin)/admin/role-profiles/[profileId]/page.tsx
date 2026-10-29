@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { RoleProfileFrame } from "@/features/role-profiles/frame";
+import { WorkflowShell } from "@/features/role-profiles/frame";
 import { ProfileLoadError } from "@/features/role-profiles/load-error";
 import { Workbench } from "@/features/role-profiles/workbench";
-import { readRoleProfile } from "@/lib/role-profile";
+import { readRoleProfile, readRoleProfileHistory } from "@/lib/role-profile";
+import { settle } from "@/lib/safe";
 import { SESSION_COOKIE } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +25,11 @@ export default async function SkillsPage({
   const query = await searchParams;
   try {
     const profile = await readRoleProfile(token, profileId);
+    const history = await settle(readRoleProfileHistory(token, profile.id), "Review history");
     return (
-      <RoleProfileFrame profile={profile} current="skills" error={query.error ?? ""} notice={query.notice ?? ""}>
-        <Workbench profile={profile} skillId={query.skillId ?? ""} category={query.category ?? ""} />
-      </RoleProfileFrame>
+      <WorkflowShell token={token} profile={profile} current="skills" error={query.error ?? ""} notice={query.notice ?? ""}>
+        <Workbench profile={profile} history={history} skillId={query.skillId ?? ""} category={query.category ?? ""} />
+      </WorkflowShell>
     );
   } catch (error) {
     return <ProfileLoadError error={error} />;

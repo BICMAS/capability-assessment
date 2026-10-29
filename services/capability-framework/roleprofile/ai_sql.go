@@ -88,7 +88,7 @@ func (s SQLStore) ListQuestions(ctx context.Context, organisationID, versionID s
 	}
 	rows, err := s.database.QueryContext(ctx, `
 		SELECT id, profile_version_id, context_version, round, field, question, critical, answer,
-		       asked_actor_id, answered_actor_id, asked_at, answered_at
+		       asked_actor_id, answered_actor_id, asked_at, answered_at, authored_by
 		FROM role_profile_questions
 		WHERE organisation_id = $1 AND profile_version_id = $2
 		ORDER BY asked_at ASC, id ASC
@@ -113,9 +113,9 @@ func (s SQLStore) SaveQuestions(ctx context.Context, organisationID string, ques
 		if _, err := s.database.ExecContext(ctx, `
 			INSERT INTO role_profile_questions (
 				id, organisation_id, profile_version_id, context_version, round, field, question, critical,
-				answer, asked_actor_id, answered_actor_id, asked_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', $9, '', $10)
-		`, question.ID, organisationID, question.ProfileVersionID, question.ContextVersion, question.Round, question.Field, question.Question, question.Critical, question.AskedActorID, question.AskedAt); err != nil {
+				answer, asked_actor_id, answered_actor_id, asked_at, authored_by
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', $9, '', $10, $11)
+		`, question.ID, organisationID, question.ProfileVersionID, question.ContextVersion, question.Round, question.Field, question.Question, question.Critical, question.AskedActorID, question.AskedAt, questionAuthor(question.AuthoredBy)); err != nil {
 			return err
 		}
 	}
@@ -128,7 +128,7 @@ func (s SQLStore) MarkAnswers(ctx context.Context, organisationID, versionID, ac
 		updated, err := s.database.ExecContext(ctx, `
 			UPDATE role_profile_questions
 			SET answer = $4, answered_actor_id = $5, answered_at = $6
-			WHERE id = $1 AND organisation_id = $2 AND profile_version_id = $3 AND answered_at IS NULL
+			WHERE id = $1 AND organisation_id = $2 AND profile_version_id = $3
 		`, answer.QuestionID, organisationID, versionID, answer.Value, actorID, now)
 		if err != nil {
 			return err
@@ -171,13 +171,13 @@ func (s SQLStore) CreateGenerationJob(ctx context.Context, job Job) (Job, error)
 		INSERT INTO role_profile_generation_jobs (
 			id, organisation_id, profile_version_id, context_version, context_hash, idempotency_key, status,
 			model_id, prompt_version, input_hash, output_hash, latency_ms, prompt_tokens, completion_tokens,
-			attempts, last_error, unsupported, uncertainty, result, cancel_requested, created_by_person_id, created_at
+			attempts, last_error, unsupported, uncertainty, result, cancel_requested, replace_existing, created_by_person_id, created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10, '', 0, 0, 0,
-			0, '', $11, $12, '', false, $13, $14
+			0, '', $11, $12, '', false, $13, $14, $15
 		)
-	`, job.ID, job.OrganisationID, job.ProfileVersionID, job.ContextVersion, job.ContextHash, job.IdempotencyKey, job.Status, job.ModelID, job.PromptVersion, job.InputHash, string(unsupported), string(uncertainty), job.CreatedBy, job.CreatedAt)
+	`, job.ID, job.OrganisationID, job.ProfileVersionID, job.ContextVersion, job.ContextHash, job.IdempotencyKey, job.Status, job.ModelID, job.PromptVersion, job.InputHash, string(unsupported), string(uncertainty), job.ReplaceExisting, job.CreatedBy, job.CreatedAt)
 	if err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" {
@@ -292,7 +292,7 @@ func (s SQLStore) CountGenerationJobs(ctx context.Context, organisationID string
 	return count, err
 }
 
-func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft) (Version, error) {
+func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft, replace bool) (Version, error) {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return Version{}, err
@@ -306,8 +306,32 @@ func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versi
 	if current.Status != StatusDraft {
 		return Version{}, ErrImmutable
 	}
-	if len(current.Skills) != 0 || len(current.AI.Draft) != 0 {
+	if !replace && draftExists(current) {
 		return Version{}, ErrConflict
+	}
+	kept := map[string]struct{}{}
+	position := 1
+	if replace {
+		for _, skill := range current.Skills {
+			if skill.Provenance == ProvenanceAISuggested {
+				continue
+			}
+			kept[skill.SkillID] = struct{}{}
+			if skill.Position >= position {
+				position = skill.Position + 1
+			}
+		}
+		for _, skill := range draft.Skills {
+			if _, exists := kept[skill.SkillID]; exists {
+				return Version{}, ErrConflict
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM role_profile_skills
+			WHERE organisation_id = $1 AND profile_version_id = $2 AND provenance = 'ai_suggested'
+		`, organisationID, versionID); err != nil {
+			return Version{}, err
+		}
 	}
 	var hash string
 	err = tx.QueryRowContext(ctx, `
@@ -323,7 +347,7 @@ func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versi
 	if err != nil {
 		return Version{}, err
 	}
-	position := 1
+	now := clock()
 	for _, skill := range draft.Skills {
 		canonical, err := q.GetCanonicalSkill(ctx, db.GetCanonicalSkillParams{OrganisationID: organisationID, ID: skill.SkillID})
 		if errors.Is(err, sql.ErrNoRows) {
@@ -346,8 +370,11 @@ func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versi
 			RequiredProficiency: int32(skill.RequiredProficiency),
 			Priority:            skill.Priority,
 			Rationale:           skill.Rationale,
+			Criteria:            skill.Criteria,
 			Provenance:          ProvenanceAISuggested,
 			Position:            int32(position),
+			CreatedAt:           now,
+			UpdatedAt:           now,
 		}); err != nil {
 			return Version{}, err
 		}
@@ -357,11 +384,14 @@ func (s SQLStore) ApplyGeneratedDraft(ctx context.Context, organisationID, versi
 	if err != nil {
 		return Version{}, err
 	}
-	updated, err := tx.ExecContext(ctx, `
+	statement := `
 		UPDATE role_profile_versions
 		SET ai_draft = $3, ai_model = $4, ai_source_context_version = $5, ai_generated_at = $6, revision = revision + 1
-		WHERE id = $1 AND organisation_id = $2 AND status = 'profile_draft' AND ai_draft = ''
-	`, versionID, organisationID, string(raw), draft.Model, draft.SourceContextVersion, draft.GeneratedAt)
+		WHERE id = $1 AND organisation_id = $2 AND status = 'profile_draft'`
+	if !replace {
+		statement += ` AND ai_draft = ''`
+	}
+	updated, err := tx.ExecContext(ctx, statement, versionID, organisationID, string(raw), draft.Model, draft.SourceContextVersion, draft.GeneratedAt)
 	if err != nil {
 		return Version{}, err
 	}
@@ -400,10 +430,19 @@ func (s SQLStore) latestContext(ctx context.Context, organisationID, versionID s
 	return record, nil
 }
 
+func questionAuthor(value string) string {
+	switch value {
+	case QuestionModel, QuestionModelUnavailable:
+		return value
+	default:
+		return QuestionService
+	}
+}
+
 func scanQuestion(row interface{ Scan(...any) error }) (Question, error) {
 	var question Question
 	var answered sql.NullTime
-	err := row.Scan(&question.ID, &question.ProfileVersionID, &question.ContextVersion, &question.Round, &question.Field, &question.Question, &question.Critical, &question.Answer, &question.AskedActorID, &question.AnsweredActorID, &question.AskedAt, &answered)
+	err := row.Scan(&question.ID, &question.ProfileVersionID, &question.ContextVersion, &question.Round, &question.Field, &question.Question, &question.Critical, &question.Answer, &question.AskedActorID, &question.AnsweredActorID, &question.AskedAt, &answered, &question.AuthoredBy)
 	if answered.Valid {
 		value := answered.Time
 		question.AnsweredAt = &value
@@ -414,7 +453,7 @@ func scanQuestion(row interface{ Scan(...any) error }) (Question, error) {
 const jobSelect = `
 	SELECT id, organisation_id, profile_version_id, context_version, context_hash, idempotency_key, status,
 	       model_id, prompt_version, input_hash, output_hash, latency_ms, prompt_tokens, completion_tokens,
-	       attempts, last_error, unsupported, uncertainty, result, cancel_requested, created_by_person_id, created_at,
+	       attempts, last_error, unsupported, uncertainty, result, cancel_requested, replace_existing, created_by_person_id, created_at,
 	       started_at, finished_at
 	FROM role_profile_generation_jobs`
 
@@ -425,7 +464,7 @@ func scanJob(row interface{ Scan(...any) error }) (Job, error) {
 	err := row.Scan(
 		&job.ID, &job.OrganisationID, &job.ProfileVersionID, &job.ContextVersion, &job.ContextHash, &job.IdempotencyKey, &job.Status,
 		&job.ModelID, &job.PromptVersion, &job.InputHash, &job.OutputHash, &job.LatencyMS, &job.PromptTokens, &job.CompletionTokens,
-		&job.Attempts, &job.LastError, &unsupported, &uncertainty, &result, &job.CancelRequested, &job.CreatedBy, &job.CreatedAt,
+		&job.Attempts, &job.LastError, &unsupported, &uncertainty, &result, &job.CancelRequested, &job.ReplaceExisting, &job.CreatedBy, &job.CreatedAt,
 		&started, &finished,
 	)
 	if err != nil {

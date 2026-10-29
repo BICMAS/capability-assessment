@@ -11,11 +11,12 @@ import { readProfile } from "@/lib/org-directory";
 import { SESSION_COOKIE } from "@/lib/session";
 
 import { submitSessionAnswers } from "./session-actions";
+import { saveSelfAssessment } from "./assessment-actions";
 
 export default async function EmployeePage({
   searchParams,
 }: {
-  searchParams: Promise<{ sessionError?: string }>;
+  searchParams: Promise<{ sessionError?: string; assessmentError?: string; assessmentNotice?: string }>;
 }) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) {
@@ -39,6 +40,8 @@ export default async function EmployeePage({
         <h1>{profile.name}</h1>
         {roleLine ? <p className="status-pill">{roleLine}</p> : <p>No role is recorded yet.</p>}
         {waiting ? <p className="portal-note">An assessment is waiting.</p> : null}
+        {params.assessmentError ? <p className="portal-note">{params.assessmentError}</p> : null}
+        {params.assessmentNotice ? <p className="portal-note">{params.assessmentNotice}</p> : null}
       </header>
       {ownSessions.length > 0 ? (
         <section className="briefing-session">
@@ -180,6 +183,22 @@ async function FrameworkLevels({
             <RequiredOnly name={capability?.name ?? "Capability"} requiredLevel={requirement.requiredLevel} />
           )}
           {pathway ? <PathwayView pathway={pathway} /> : null}
+          <form action={saveSelfAssessment} className="framework-form">
+            <input type="hidden" name="personId" value={personId} />
+            <input type="hidden" name="frameworkVersionId" value={framework.id} />
+            <input type="hidden" name="capabilityCode" value={requirement.capabilityId} />
+            <input type="hidden" name="requiredLevel" value={requirement.requiredLevel} />
+            <label>
+              Self-assessment for {capability?.name ?? "this capability"}
+              <input name="assessedProficiency" type="number" min={0} max={4} required />
+            </label>
+            <label>
+              Evidence
+              <input name="evidence" type="text" required />
+            </label>
+            <p className="portal-note">This is stored as a self-assessment. It is not included in the calculated level.</p>
+            <button type="submit">Save self-assessment</button>
+          </form>
         </div>
       ))}
     </section>

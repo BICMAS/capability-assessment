@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ClarificationPanel } from "@/features/role-profiles/clarification-panel";
-import { RoleProfileFrame } from "@/features/role-profiles/frame";
+import { WorkflowShell } from "@/features/role-profiles/frame";
 import { ProfileLoadError } from "@/features/role-profiles/load-error";
 import { readClarification, readRoleProfile } from "@/lib/role-profile";
 import { settle } from "@/lib/safe";
@@ -27,9 +27,16 @@ export default async function ClarifyPage({
     const profile = await readRoleProfile(token, profileId);
     const session = await settle(readClarification(token, profile.version.id), "Clarification");
     return (
-      <RoleProfileFrame profile={profile} current="clarify" error={query.error ?? ""} notice={query.notice ?? ""}>
+      <WorkflowShell
+        token={token}
+        profile={profile}
+        current="clarify"
+        error={query.error ?? ""}
+        notice={query.notice ?? ""}
+        clarificationComplete={session.ok ? session.value.complete : null}
+      >
         <ClarificationPanel profileId={profile.id} versionId={profile.version.id} editable={profile.version.status === "profile_draft"} session={session} />
-      </RoleProfileFrame>
+      </WorkflowShell>
     );
   } catch (error) {
     return <ProfileLoadError error={error} />;

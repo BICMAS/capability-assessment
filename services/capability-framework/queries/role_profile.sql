@@ -48,6 +48,11 @@ INSERT INTO role_profile_versions (
     region,
     team_size,
     reporting_level,
+    organogram_id,
+    position_id,
+    business_unit,
+    sub_industry,
+    organisational_context,
     framework_version_id,
     ai_draft,
     ai_model,
@@ -55,7 +60,7 @@ INSERT INTO role_profile_versions (
     ai_generated_at,
     created_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
 );
 
 -- name: GetRoleProfileVersion :one
@@ -74,12 +79,23 @@ SELECT
     region,
     team_size,
     reporting_level,
+    organogram_id,
+    position_id,
+    business_unit,
+    sub_industry,
+    organisational_context,
     framework_version_id,
     ai_draft,
     ai_model,
     ai_source_context_version,
     ai_generated_at,
-    created_at
+    created_at,
+    submitted_at,
+    submitted_by_person_id,
+    submission_cycle,
+    workflow_stage,
+    approved_at,
+    approved_by_person_id
 FROM role_profile_versions
 WHERE organisation_id = $1 AND id = $2;
 
@@ -112,10 +128,15 @@ SET
     region = $8,
     team_size = $9,
     reporting_level = $10,
+    organogram_id = $11,
+    position_id = $12,
+    business_unit = $13,
+    sub_industry = $14,
+    organisational_context = $15,
     revision = revision + 1
 WHERE id = $1
   AND organisation_id = $2
-  AND revision = $11
+  AND revision = $16
   AND status = 'profile_draft';
 
 -- name: TouchRoleProfileDraft :execrows
@@ -153,11 +174,11 @@ DELETE FROM role_profile_sources
 WHERE organisation_id = $1 AND profile_version_id = $2;
 
 -- name: InsertRoleProfileSource :exec
-INSERT INTO role_profile_sources (id, organisation_id, profile_version_id, title, reference_uri)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO role_profile_sources (id, organisation_id, profile_version_id, title, reference_uri, kind, body, origin)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: ListRoleProfileSources :many
-SELECT id, title, reference_uri
+SELECT id, title, reference_uri, kind, body, origin
 FROM role_profile_sources
 WHERE organisation_id = $1 AND profile_version_id = $2
 ORDER BY title ASC, id ASC;
@@ -173,10 +194,14 @@ INSERT INTO role_profile_skills (
     required_proficiency,
     priority,
     rationale,
+    criteria,
+    display_name,
     provenance,
-    position
+    position,
+    created_at,
+    updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 );
 
 -- name: ListRoleProfileSkills :many
@@ -189,8 +214,12 @@ SELECT
     a.required_proficiency,
     a.priority,
     a.rationale,
+    a.criteria,
+    a.display_name,
     a.provenance,
-    a.position
+    a.position,
+    a.created_at,
+    a.updated_at
 FROM role_profile_skills a
 JOIN canonical_skills s ON s.id = a.skill_id AND s.organisation_id = a.organisation_id
 WHERE a.organisation_id = $1 AND a.profile_version_id = $2
@@ -199,11 +228,15 @@ ORDER BY a.position ASC;
 -- name: UpdateRoleProfileSkill :exec
 UPDATE role_profile_skills
 SET
-    definition = $4,
-    required_proficiency = $5,
-    priority = $6,
-    rationale = $7,
-    provenance = $8
+    category = $4,
+    definition = $5,
+    required_proficiency = $6,
+    priority = $7,
+    rationale = $8,
+    criteria = $9,
+    display_name = $10,
+    provenance = $11,
+    updated_at = $12
 WHERE id = $1
   AND organisation_id = $2
   AND profile_version_id = $3;
@@ -214,7 +247,7 @@ WHERE id = $1 AND organisation_id = $2 AND profile_version_id = $3;
 
 -- name: UpdateRoleProfileSkillPosition :exec
 UPDATE role_profile_skills
-SET position = $4
+SET position = $4, updated_at = $5
 WHERE id = $1 AND organisation_id = $2 AND profile_version_id = $3;
 
 -- name: InsertRoleProfileComment :exec
@@ -244,5 +277,26 @@ INSERT INTO role_profile_audit (
 -- name: ListRoleProfileAudit :many
 SELECT id, profile_version_id, actor_person_id, action, occurred_at
 FROM role_profile_audit
+WHERE organisation_id = $1 AND role_profile_id = $2
+ORDER BY occurred_at ASC, id ASC;
+
+-- name: InsertRoleProfileReviewChange :exec
+INSERT INTO role_profile_review_changes (
+    id,
+    organisation_id,
+    role_profile_id,
+    profile_version_id,
+    skill_assignment_id,
+    actor_person_id,
+    fields,
+    rationale,
+    occurred_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+);
+
+-- name: ListRoleProfileReviewChanges :many
+SELECT id, profile_version_id, skill_assignment_id, actor_person_id, fields, rationale, occurred_at
+FROM role_profile_review_changes
 WHERE organisation_id = $1 AND role_profile_id = $2
 ORDER BY occurred_at ASC, id ASC;

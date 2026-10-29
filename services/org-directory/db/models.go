@@ -26,11 +26,45 @@ type Organisation struct {
 	Name string
 }
 
+type Organogram struct {
+	ID                string
+	OrganisationID    string
+	Name              string
+	Status            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
+type OrganogramFile struct {
+	ID                string
+	OrganisationID    string
+	OrganogramID      string
+	FileName          string
+	MediaType         string
+	ByteSize          int32
+	Body              []byte
+	Status            string
+	Detail            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
+}
+
 type Person struct {
 	ID             string
 	OrganisationID string
 	Name           string
 	DepartmentID   sql.NullString
+}
+
+type Position struct {
+	ID                  string
+	OrganisationID      string
+	OrganogramID        string
+	DepartmentID        sql.NullString
+	Title               string
+	PersonID            sql.NullString
+	ReportsToPositionID sql.NullString
+	CreatedAt           time.Time
 }
 
 type RoleAssignment struct {

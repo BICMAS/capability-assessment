@@ -24,7 +24,14 @@ export type CanonicalSkill = {
   definition: string;
 };
 
-export type RoleProfileSource = { id: string; title: string; referenceUri: string };
+export type RoleProfileSource = {
+  id: string;
+  title: string;
+  referenceUri: string;
+  kind?: string;
+  body?: string;
+  origin?: string;
+};
 
 export type RoleProfileSkill = {
   id: string;
@@ -35,8 +42,12 @@ export type RoleProfileSkill = {
   requiredProficiency: number;
   priority: string;
   rationale: string;
+  criteria?: string;
+  displayName?: string;
   provenance: string;
   position: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type RoleProfileVersion = {
@@ -54,11 +65,20 @@ export type RoleProfileVersion = {
   region: string;
   teamSize: number | null;
   reportingLevel: string;
+  organogramId?: string;
+  positionId?: string;
+  businessUnit?: string;
+  subIndustry?: string;
+  organisationalContext?: string;
   frameworkVersionId: string;
   sources: RoleProfileSource[];
   skills: RoleProfileSkill[];
   ai: { model: string; sourceContextVersion: string; generatedAt: string | null; draft: unknown };
   createdAt: string;
+  submittedAt?: string;
+  workflowStage?: string;
+  approvedAt?: string;
+  approvedByPersonId?: string;
 };
 
 export type RoleProfile = {
@@ -81,6 +101,9 @@ export type ClarificationQuestion = {
   critical: boolean;
   answer: string;
   unresolved: boolean;
+  authoredBy?: string;
+  reason?: string;
+  options?: string[];
   askedActorId: string;
   answeredActorId: string;
   askedAt: string;
@@ -115,6 +138,7 @@ export type GenerationJob = {
   contextVersion: number;
   contextHash: string;
   idempotencyKey: string;
+  replaceExisting?: boolean;
   status: string;
   modelId: string;
   promptVersion: string;
@@ -140,10 +164,21 @@ export type RoleProfileComment = {
   createdAt: string;
 };
 
+export type ReviewChange = {
+  id: string;
+  profileVersionId: string;
+  skillAssignmentId: string;
+  actorPersonId: string;
+  fields: string[];
+  rationale: string;
+  occurredAt: string;
+};
+
 export type RoleProfileHistory = {
   profileId: string;
   events: Array<{ id: string; profileVersionId: string; actorPersonId: string; action: string; occurredAt: string }>;
   comments: RoleProfileComment[];
+  changes?: ReviewChange[];
 };
 
 export type RoleProfileComparison = {
@@ -164,7 +199,80 @@ export type ContextInput = {
   region: string;
   teamSize: number | null;
   reportingLevel: string;
-  sources: Array<{ title: string; referenceUri: string }>;
+  organogramId: string;
+  positionId: string;
+  businessUnit: string;
+  subIndustry: string;
+  organisationalContext: string;
+  frameworkVersionId?: string;
+  sources: Array<{ title: string; referenceUri: string; kind?: string; body?: string; origin?: string }>;
+};
+
+export type ApprovalAssignment = {
+  id: string;
+  organisationId: string;
+  profileVersionId: string;
+  assigneePersonId: string;
+  assignedByPersonId: string;
+  createdAt: string;
+  stageKey?: string;
+};
+
+export type ApprovalDecision = {
+  id: string;
+  organisationId: string;
+  profileVersionId: string;
+  assignmentId: string;
+  actorPersonId: string;
+  decision: string;
+  comment: string;
+  createdAt: string;
+  stageKey?: string;
+  submissionCycle?: number;
+};
+
+export type ApprovalStep = {
+  id: string;
+  organisationId: string;
+  profileVersionId: string;
+  stageKey: string;
+  label: string;
+  requiredRole: string;
+  position: number;
+};
+
+export type ApprovalRecord = {
+  assignments: ApprovalAssignment[];
+  decisions: ApprovalDecision[];
+  steps: ApprovalStep[];
+  currentStage: string;
+  stageLabel: string;
+  assigneePersonId: string;
+  outstanding: string;
+  canDecide: boolean;
+  canResubmit: boolean;
+};
+
+export type ApprovalPathStage = {
+  stageKey: string;
+  label: string;
+  requiredRole: string;
+  position: number;
+};
+
+export type ApprovalQueueItem = {
+  profileId: string;
+  roleName: string;
+  department: string;
+  versionId: string;
+  versionNumber: number;
+  revision: number;
+  status: string;
+  workflowStage: string;
+  stageLabel: string;
+  submittedAt: string | null;
+  assigneePersonId: string;
+  outstanding: string;
 };
 
 export function roleProfileFailure(error: unknown): ActionErr | null {
@@ -257,10 +365,51 @@ export function addRoleProfileSkill(
     requiredProficiency: number;
     priority: string;
     rationale: string;
+    criteria?: string;
     provenance: string;
   },
 ): Promise<RoleProfileVersion> {
   return send(token, `/role-profile-versions/${encodeURIComponent(versionId)}/skills`, { method: "POST", body: input }, isVersion, 201);
+}
+
+export function saveRoleProfileSkillEdits(
+  token: string,
+  versionId: string,
+  expectedRevision: number,
+  edits: Array<{
+    skillAssignmentId: string;
+    definition: string;
+    requiredProficiency: number;
+    priority: string;
+    rationale: string;
+    displayName: string;
+    category: string;
+    criteria: string;
+  }>,
+): Promise<RoleProfileVersion> {
+  return send(
+    token,
+    `/role-profile-versions/${encodeURIComponent(versionId)}/skill-edits`,
+    { method: "POST", body: { expectedRevision, edits } },
+    isVersion,
+    200,
+  );
+}
+
+export function mergeRoleProfileSkills(
+  token: string,
+  versionId: string,
+  expectedRevision: number,
+  keepId: string,
+  removeId: string,
+): Promise<RoleProfileVersion> {
+  return send(
+    token,
+    `/role-profile-versions/${encodeURIComponent(versionId)}/skill-merges`,
+    { method: "POST", body: { expectedRevision, keepId, removeId } },
+    isVersion,
+    200,
+  );
 }
 
 export function updateRoleProfileSkill(
@@ -341,11 +490,12 @@ export function startRoleProfileGeneration(
   versionId: string,
   contextVersion: number,
   idempotencyKey: string,
+  replaceExisting = false,
 ): Promise<GenerationJob> {
   return send(
     token,
     `/role-profile-versions/${encodeURIComponent(versionId)}/generation`,
-    { method: "POST", body: { contextVersion, idempotencyKey } },
+    { method: "POST", body: { contextVersion, idempotencyKey, replaceExisting } },
     isJob,
     [200, 202],
   );
@@ -357,6 +507,38 @@ export function readRoleProfileJob(token: string, jobId: string): Promise<Genera
 
 export function retryRoleProfileJob(token: string, jobId: string): Promise<GenerationJob> {
   return send(token, `/role-profile-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }, isJob, [200, 202]);
+}
+
+export function assignRoleProfileApproval(token: string, versionId: string, assigneePersonId: string): Promise<ApprovalAssignment> {
+  return send(token, `/role-profile-versions/${encodeURIComponent(versionId)}/approval-assignments`, { method: "POST", body: { assigneePersonId } }, isApprovalAssignment, 201);
+}
+
+export function listRoleProfileApprovals(token: string, versionId: string): Promise<ApprovalRecord> {
+  return send(token, `/role-profile-versions/${encodeURIComponent(versionId)}/approvals`, { method: "GET" }, isApprovalRecord, 200);
+}
+
+export function decideRoleProfileApproval(
+  token: string,
+  versionId: string,
+  body: { assignmentId: string; decision: string; comment: string; expectedRevision: number },
+): Promise<RoleProfileVersion> {
+  return send(token, `/role-profile-versions/${encodeURIComponent(versionId)}/approval-decisions`, { method: "POST", body }, isVersion, 200);
+}
+
+export function resubmitRoleProfile(token: string, versionId: string, expectedRevision: number): Promise<RoleProfileVersion> {
+  return send(token, `/role-profile-versions/${encodeURIComponent(versionId)}/resubmit`, { method: "POST", body: { expectedRevision } }, isVersion, 200);
+}
+
+export function readApprovalPath(token: string): Promise<ApprovalPathStage[]> {
+  return send(token, "/role-profile-workflow", { method: "GET" }, isApprovalPath, 200);
+}
+
+export function saveApprovalPath(token: string, stages: ApprovalPathStage[]): Promise<ApprovalPathStage[]> {
+  return send(token, "/role-profile-workflow", { method: "PUT", body: { stages } }, isApprovalPath, 200);
+}
+
+export function listApprovalQueue(token: string, view: "awaiting" | "submitted" | "reviewed"): Promise<ApprovalQueueItem[]> {
+  return send(token, `/role-profile-approvals?view=${encodeURIComponent(view)}`, { method: "GET" }, isApprovalQueue, 200);
 }
 
 async function send<T>(
@@ -404,7 +586,55 @@ function isCanonicalSkill(value: unknown): value is CanonicalSkill {
 }
 
 function isSource(value: unknown): value is RoleProfileSource {
-  return isRecord(value) && strings(value, ["id", "title", "referenceUri"]);
+  return isRecord(value) && strings(value, ["id", "title", "referenceUri"]) && (value.kind === undefined || typeof value.kind === "string");
+}
+
+function isApprovalAssignment(value: unknown): value is ApprovalAssignment {
+  return isRecord(value) && strings(value, ["id", "organisationId", "profileVersionId", "assigneePersonId", "assignedByPersonId", "createdAt"]);
+}
+
+function isApprovalDecision(value: unknown): value is ApprovalDecision {
+  return isRecord(value) && strings(value, ["id", "organisationId", "profileVersionId", "assignmentId", "actorPersonId", "decision", "comment", "createdAt"]);
+}
+
+function isApprovalRecord(value: unknown): value is ApprovalRecord {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.assignments) &&
+    value.assignments.every(isApprovalAssignment) &&
+    Array.isArray(value.decisions) &&
+    value.decisions.every(isApprovalDecision) &&
+    Array.isArray(value.steps) &&
+    value.steps.every(isApprovalStep) &&
+    typeof value.currentStage === "string" &&
+    typeof value.stageLabel === "string" &&
+    typeof value.assigneePersonId === "string" &&
+    typeof value.outstanding === "string" &&
+    typeof value.canDecide === "boolean" &&
+    typeof value.canResubmit === "boolean"
+  );
+}
+
+function isApprovalStep(value: unknown): value is ApprovalStep {
+  return isRecord(value) && strings(value, ["id", "organisationId", "profileVersionId", "stageKey", "label", "requiredRole"]) && typeof value.position === "number";
+}
+
+function isApprovalPath(value: unknown): value is ApprovalPathStage[] {
+  return Array.isArray(value) && value.every((item) => isRecord(item) && strings(item, ["stageKey", "label", "requiredRole"]) && typeof item.position === "number");
+}
+
+function isApprovalQueue(value: unknown): value is ApprovalQueueItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        strings(item, ["profileId", "roleName", "department", "versionId", "status", "workflowStage", "stageLabel", "assigneePersonId", "outstanding"]) &&
+        typeof item.versionNumber === "number" &&
+        typeof item.revision === "number" &&
+        (item.submittedAt === null || typeof item.submittedAt === "string"),
+    )
+  );
 }
 
 function isSkill(value: unknown): value is RoleProfileSkill {
@@ -523,13 +753,18 @@ function isComment(value: unknown): value is RoleProfileComment {
   return isRecord(value) && strings(value, ["id", "profileVersionId", "authorPersonId", "body", "createdAt"]);
 }
 
+function isReviewChange(value: unknown): value is ReviewChange {
+  return isRecord(value) && strings(value, ["id", "profileVersionId", "skillAssignmentId", "actorPersonId", "rationale", "occurredAt"]) && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string");
+}
+
 function isHistory(value: unknown): value is RoleProfileHistory {
   return (
     isRecord(value) &&
     typeof value.profileId === "string" &&
     Array.isArray(value.events) &&
     Array.isArray(value.comments) &&
-    value.comments.every(isComment)
+    value.comments.every(isComment) &&
+    (value.changes === undefined || (Array.isArray(value.changes) && value.changes.every(isReviewChange)))
   );
 }
 

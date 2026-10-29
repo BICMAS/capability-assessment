@@ -155,6 +155,38 @@ type RoleProfile struct {
 	CreatedAt         time.Time
 }
 
+type RoleProfileApprovalAssignment struct {
+	ID                 string
+	OrganisationID     string
+	ProfileVersionID   string
+	AssigneePersonID   string
+	AssignedByPersonID string
+	CreatedAt          time.Time
+	StageKey           string
+}
+
+type RoleProfileApprovalDecision struct {
+	ID               string
+	OrganisationID   string
+	ProfileVersionID string
+	AssignmentID     string
+	ActorPersonID    string
+	Decision         string
+	Comment          string
+	CreatedAt        time.Time
+	StageKey         string
+	SubmissionCycle  int32
+}
+
+type RoleProfileApprovalPath struct {
+	ID             string
+	OrganisationID string
+	StageKey       string
+	Label          string
+	RequiredRole   string
+	Position       int32
+}
+
 type RoleProfileAudit struct {
 	ID               string
 	OrganisationID   string
@@ -206,10 +238,24 @@ type RoleProfileGenerationJob struct {
 	Uncertainty       string
 	Result            string
 	CancelRequested   bool
+	ReplaceExisting   bool
 	CreatedByPersonID string
 	CreatedAt         time.Time
 	StartedAt         sql.NullTime
 	FinishedAt        sql.NullTime
+}
+
+type RoleProfileJobDescription struct {
+	ID                string
+	OrganisationID    string
+	ProfileVersionID  string
+	FileName          string
+	MediaType         string
+	ByteSize          int32
+	Body              []byte
+	Detail            string
+	CreatedByPersonID string
+	CreatedAt         time.Time
 }
 
 type RoleProfileQuestion struct {
@@ -226,6 +272,19 @@ type RoleProfileQuestion struct {
 	AnsweredActorID  string
 	AskedAt          time.Time
 	AnsweredAt       sql.NullTime
+	AuthoredBy       string
+}
+
+type RoleProfileReviewChange struct {
+	ID                string
+	OrganisationID    string
+	RoleProfileID     string
+	ProfileVersionID  string
+	SkillAssignmentID string
+	ActorPersonID     string
+	Fields            string
+	Rationale         string
+	OccurredAt        time.Time
 }
 
 type RoleProfileSkill struct {
@@ -238,8 +297,12 @@ type RoleProfileSkill struct {
 	RequiredProficiency int32
 	Priority            string
 	Rationale           string
+	Criteria            string
+	DisplayName         string
 	Provenance          string
 	Position            int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type RoleProfileSource struct {
@@ -248,6 +311,9 @@ type RoleProfileSource struct {
 	ProfileVersionID string
 	Title            string
 	ReferenceUri     string
+	Kind             string
+	Body             string
+	Origin           string
 }
 
 type RoleProfileVersion struct {
@@ -265,10 +331,31 @@ type RoleProfileVersion struct {
 	Region                 string
 	TeamSize               sql.NullInt32
 	ReportingLevel         string
+	OrganogramID           string
+	PositionID             string
+	BusinessUnit           string
+	SubIndustry            string
+	OrganisationalContext  string
 	FrameworkVersionID     sql.NullString
 	AiDraft                string
 	AiModel                string
 	AiSourceContextVersion string
 	AiGeneratedAt          sql.NullTime
 	CreatedAt              time.Time
+	SubmittedAt            sql.NullTime
+	SubmittedByPersonID    string
+	SubmissionCycle        int32
+	WorkflowStage          string
+	ApprovedAt             sql.NullTime
+	ApprovedByPersonID     string
+}
+
+type RoleProfileWorkflowStep struct {
+	ID               string
+	OrganisationID   string
+	ProfileVersionID string
+	StageKey         string
+	Label            string
+	RequiredRole     string
+	Position         int32
 }

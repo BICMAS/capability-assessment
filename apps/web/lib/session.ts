@@ -1,15 +1,17 @@
 export const SESSION_COOKIE = "session";
 
-export type Role = "admin" | "employee" | "manager";
+export type Role = "admin" | "hr" | "leader" | "employee" | "manager";
 
 const homes: Record<Role, string> = {
   admin: "/admin",
+  hr: "/admin",
+  leader: "/admin",
   employee: "/employee",
   manager: "/manager",
 };
 
 export function homeFor(roles: readonly string[]): string | null {
-  if (roles.includes("admin")) {
+  if (roles.includes("admin") || roles.includes("hr") || roles.includes("leader")) {
     return homes.admin;
   }
   if (roles.includes("employee")) {
@@ -19,6 +21,17 @@ export function homeFor(roles: readonly string[]): string | null {
     return homes.manager;
   }
   return null;
+}
+
+export function allowsPath(pathname: string, roles: readonly string[]): boolean {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    return roles.includes("admin") || roles.includes("hr") || roles.includes("leader");
+  }
+  const required = roleForPath(pathname);
+  if (!required) {
+    return true;
+  }
+  return roles.includes(required);
 }
 
 export function roleForPath(pathname: string): Role | null {

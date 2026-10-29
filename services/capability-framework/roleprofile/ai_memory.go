@@ -195,7 +195,7 @@ func (m *Memory) CountGenerationJobs(_ context.Context, organisationID string, s
 	return count, nil
 }
 
-func (m *Memory) ApplyGeneratedDraft(_ context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft) (Version, error) {
+func (m *Memory) ApplyGeneratedDraft(_ context.Context, organisationID, versionID, contextHash string, draft GeneratedDraft, replace bool) (Version, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	version, ok := m.version(organisationID, versionID)
@@ -209,11 +209,30 @@ func (m *Memory) ApplyGeneratedDraft(_ context.Context, organisationID, versionI
 	if latest.Hash != contextHash {
 		return Version{}, ErrStale
 	}
-	if len(version.Skills) != 0 || len(version.AI.Draft) != 0 {
+	if !replace && draftExists(*version) {
 		return Version{}, ErrConflict
 	}
-	assignments := make([]SkillAssignment, 0, len(draft.Skills))
+	kept := make([]SkillAssignment, 0)
+	occupied := map[string]struct{}{}
+	position := 1
+	if replace {
+		for _, skill := range version.Skills {
+			if skill.Provenance == ProvenanceAISuggested {
+				continue
+			}
+			kept = append(kept, skill)
+			occupied[skill.SkillID] = struct{}{}
+			if skill.Position >= position {
+				position = skill.Position + 1
+			}
+		}
+	}
+	now := clock()
+	assignments := append([]SkillAssignment{}, kept...)
 	for _, skill := range draft.Skills {
+		if _, exists := occupied[skill.SkillID]; exists {
+			return Version{}, ErrConflict
+		}
 		canonical, ok := m.skill(organisationID, skill.SkillID)
 		if !ok {
 			return Version{}, ErrNotFound
@@ -231,9 +250,13 @@ func (m *Memory) ApplyGeneratedDraft(_ context.Context, organisationID, versionI
 			RequiredProficiency: skill.RequiredProficiency,
 			Priority:            skill.Priority,
 			Rationale:           skill.Rationale,
+			Criteria:            skill.Criteria,
 			Provenance:          ProvenanceAISuggested,
-			Position:            len(assignments) + 1,
+			Position:            position,
+			CreatedAt:           now,
+			UpdatedAt:           now,
 		})
+		position++
 	}
 	raw, err := json.Marshal(draft)
 	if err != nil {

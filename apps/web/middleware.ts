@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { fetchSession } from "@/lib/gateway";
-import { SESSION_COOKIE, homeFor, roleForPath } from "@/lib/session";
+import { SESSION_COOKIE, allowsPath, homeFor, roleForPath } from "@/lib/session";
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(home, request.url));
   }
 
-  if (required && !session?.roles.includes(required)) {
+  if (required && !allowsPath(pathname, session?.roles ?? [])) {
     return NextResponse.redirect(new URL(home, request.url));
   }
 

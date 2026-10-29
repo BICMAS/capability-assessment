@@ -269,6 +269,16 @@ func ProfileInsights(store ProfilePlanStore, levels LevelReader, tenures TenureR
 		}
 		versionID := r.URL.Query().Get("profileVersionId")
 		department := r.URL.Query().Get("department")
+		from, err := parseInsightTime(r.URL.Query().Get("from"), false)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		to, err := parseInsightTime(r.URL.Query().Get("to"), true)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
 		if department != "" && people == nil {
 			writeStoreError(w, ErrProvider)
 			return
@@ -284,7 +294,7 @@ func ProfileInsights(store ProfilePlanStore, levels LevelReader, tenures TenureR
 			return
 		}
 		departments := map[string]string{}
-		if department != "" {
+		if people != nil {
 			rows, err := people.ListPeople(r.Context(), r.Header.Get("Authorization"))
 			if err != nil {
 				writeStoreError(w, err)
@@ -322,7 +332,8 @@ func ProfileInsights(store ProfilePlanStore, levels LevelReader, tenures TenureR
 			})
 		}
 		insight, err := BuildInsight(InsightActor{PersonID: claims.PersonID, Roles: claims.Roles, ManagerOf: claims.ManagerOf}, InsightRequest{
-			PersonID: r.URL.Query().Get("personId"), Department: department, ProfileVersionID: versionID,
+			PersonID: r.URL.Query().Get("personId"), Department: department, RoleName: r.URL.Query().Get("role"),
+			Query: r.URL.Query().Get("q"), ProfileVersionID: versionID, From: from, To: to,
 		}, subjects)
 		if err != nil {
 			writeStoreError(w, err)
@@ -330,6 +341,24 @@ func ProfileInsights(store ProfilePlanStore, levels LevelReader, tenures TenureR
 		}
 		writeJSON(w, http.StatusOK, insight)
 	}
+}
+
+func parseInsightTime(value string, end bool) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, ErrInvalid
+	}
+	if end {
+		return parsed.Add(24*time.Hour - time.Nanosecond), nil
+	}
+	return parsed, nil
 }
 
 func baselineAssessedAt(tenures []RoleTenure, personID, roleName string) time.Time {

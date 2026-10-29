@@ -197,18 +197,30 @@ CREATE TABLE role_profile_versions (
     region text NOT NULL,
     team_size integer,
     reporting_level text NOT NULL,
+    organogram_id text NOT NULL DEFAULT '',
+    position_id text NOT NULL DEFAULT '',
+    business_unit text NOT NULL DEFAULT '',
+    sub_industry text NOT NULL DEFAULT '',
+    organisational_context text NOT NULL DEFAULT '',
     framework_version_id text REFERENCES framework_versions (id),
     ai_draft text NOT NULL,
     ai_model text NOT NULL,
     ai_source_context_version text NOT NULL,
     ai_generated_at timestamptz,
     created_at timestamptz NOT NULL,
+    submitted_at timestamptz,
+    submitted_by_person_id text NOT NULL DEFAULT '',
+    submission_cycle integer NOT NULL DEFAULT 0,
+    workflow_stage text NOT NULL DEFAULT '',
+    approved_at timestamptz,
+    approved_by_person_id text NOT NULL DEFAULT '',
     UNIQUE (role_profile_id, version_number),
     CHECK (version_number > 0),
     CHECK (revision > 0),
-    CHECK (status IN ('profile_draft', 'profile_in_review', 'profile_published')),
+    CHECK (status IN ('profile_draft', 'profile_in_review', 'profile_published', 'profile_superseded')),
     CHECK (reporting_level IN ('', 'individual', 'team_lead', 'manager', 'director', 'executive')),
-    CHECK (team_size IS NULL OR team_size > 0)
+    CHECK (team_size IS NULL OR team_size > 0),
+    CHECK (submission_cycle >= 0)
 );
 
 CREATE INDEX role_profile_versions_by_profile ON role_profile_versions (organisation_id, role_profile_id, version_number);
@@ -218,8 +230,30 @@ CREATE TABLE role_profile_sources (
     organisation_id text NOT NULL,
     profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
     title text NOT NULL,
-    reference_uri text NOT NULL
+    reference_uri text NOT NULL,
+    kind text NOT NULL DEFAULT 'reference',
+    body text NOT NULL DEFAULT '',
+    origin text NOT NULL DEFAULT 'user',
+    CHECK (kind IN ('reference', 'job_description')),
+    CHECK (origin IN ('user', 'imported', 'ai_suggested'))
 );
+
+CREATE TABLE role_profile_job_descriptions (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
+    file_name text NOT NULL,
+    media_type text NOT NULL,
+    byte_size integer NOT NULL,
+    body bytea NOT NULL,
+    detail text NOT NULL,
+    created_by_person_id text NOT NULL,
+    created_at timestamptz NOT NULL,
+    CHECK (byte_size > 0)
+);
+
+CREATE INDEX role_profile_job_descriptions_by_version
+    ON role_profile_job_descriptions (organisation_id, profile_version_id);
 
 CREATE TABLE role_profile_skills (
     id text PRIMARY KEY,
@@ -231,8 +265,12 @@ CREATE TABLE role_profile_skills (
     required_proficiency integer NOT NULL,
     priority text NOT NULL,
     rationale text NOT NULL,
+    criteria text NOT NULL DEFAULT '',
+    display_name text NOT NULL DEFAULT '',
     provenance text NOT NULL,
     position integer NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (profile_version_id, skill_id),
     CHECK (category IN ('technical', 'leadership', 'domain', 'communication', 'compliance')),
     CHECK (required_proficiency >= 0 AND required_proficiency <= 4),
@@ -264,6 +302,20 @@ CREATE TABLE role_profile_audit (
 
 CREATE INDEX role_profile_audit_by_profile ON role_profile_audit (organisation_id, role_profile_id, occurred_at);
 
+CREATE TABLE role_profile_review_changes (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    role_profile_id text NOT NULL REFERENCES role_profiles (id),
+    profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
+    skill_assignment_id text NOT NULL,
+    actor_person_id text NOT NULL,
+    fields text NOT NULL,
+    rationale text NOT NULL DEFAULT '',
+    occurred_at timestamptz NOT NULL
+);
+
+CREATE INDEX role_profile_review_changes_by_profile ON role_profile_review_changes (organisation_id, role_profile_id, occurred_at);
+
 CREATE TABLE role_profile_contexts (
     id text PRIMARY KEY,
     organisation_id text NOT NULL,
@@ -292,7 +344,9 @@ CREATE TABLE role_profile_questions (
     answered_actor_id text NOT NULL,
     asked_at timestamptz NOT NULL,
     answered_at timestamptz,
-    CHECK (round > 0)
+    authored_by text NOT NULL DEFAULT 'service',
+    CHECK (round > 0),
+    CHECK (authored_by IN ('service', 'model', 'service_after_model_error'))
 );
 
 CREATE INDEX role_profile_questions_by_version ON role_profile_questions (organisation_id, profile_version_id, context_version);
@@ -318,6 +372,7 @@ CREATE TABLE role_profile_generation_jobs (
     uncertainty text NOT NULL,
     result text NOT NULL,
     cancel_requested boolean NOT NULL,
+    replace_existing boolean NOT NULL DEFAULT false,
     created_by_person_id text NOT NULL,
     created_at timestamptz NOT NULL,
     started_at timestamptz,
@@ -329,3 +384,65 @@ CREATE TABLE role_profile_generation_jobs (
 
 CREATE INDEX role_profile_generation_jobs_queued ON role_profile_generation_jobs (created_at)
     WHERE status = 'queued';
+
+CREATE TABLE role_profile_approval_assignments (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
+    assignee_person_id text NOT NULL,
+    assigned_by_person_id text NOT NULL,
+    created_at timestamptz NOT NULL,
+    stage_key text NOT NULL DEFAULT '',
+    UNIQUE (profile_version_id, stage_key)
+);
+
+CREATE INDEX role_profile_approval_assignments_by_version
+    ON role_profile_approval_assignments (organisation_id, profile_version_id);
+
+CREATE TABLE role_profile_approval_decisions (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
+    assignment_id text NOT NULL REFERENCES role_profile_approval_assignments (id),
+    actor_person_id text NOT NULL,
+    decision text NOT NULL,
+    comment text NOT NULL,
+    created_at timestamptz NOT NULL,
+    stage_key text NOT NULL DEFAULT '',
+    submission_cycle integer NOT NULL DEFAULT 0,
+    CHECK (decision IN ('approved', 'rejected', 'changes_requested')),
+    CHECK (submission_cycle >= 0)
+);
+
+CREATE INDEX role_profile_approval_decisions_by_version
+    ON role_profile_approval_decisions (organisation_id, profile_version_id, created_at);
+
+CREATE TABLE role_profile_approval_paths (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    stage_key text NOT NULL,
+    label text NOT NULL,
+    required_role text NOT NULL,
+    position integer NOT NULL,
+    UNIQUE (organisation_id, stage_key),
+    UNIQUE (organisation_id, position),
+    CHECK (position > 0),
+    CHECK (required_role IN ('hr', 'manager', 'leader'))
+);
+
+CREATE TABLE role_profile_workflow_steps (
+    id text PRIMARY KEY,
+    organisation_id text NOT NULL,
+    profile_version_id text NOT NULL REFERENCES role_profile_versions (id),
+    stage_key text NOT NULL,
+    label text NOT NULL,
+    required_role text NOT NULL,
+    position integer NOT NULL,
+    UNIQUE (profile_version_id, stage_key),
+    UNIQUE (profile_version_id, position),
+    CHECK (position > 0),
+    CHECK (required_role IN ('hr', 'manager', 'leader'))
+);
+
+CREATE INDEX role_profile_workflow_steps_by_version
+    ON role_profile_workflow_steps (organisation_id, profile_version_id, position);

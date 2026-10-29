@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { RoleProfileFrame } from "@/features/role-profiles/frame";
+import { WorkflowShell } from "@/features/role-profiles/frame";
 import { HistoryPanel } from "@/features/role-profiles/history-panel";
 import { ProfileLoadError } from "@/features/role-profiles/load-error";
 import { compareRoleProfileVersions, listRoleProfileVersions, readRoleProfile, readRoleProfileHistory } from "@/lib/role-profile";
@@ -31,9 +31,9 @@ export default async function HistoryPage({
     ]);
     const comparison = query.from && query.to ? await settle(compareRoleProfileVersions(token, profile.id, query.from, query.to), "Comparison") : null;
     return (
-      <RoleProfileFrame profile={profile} current="history" error={query.error ?? ""} notice={query.notice ?? ""}>
+      <WorkflowShell token={token} profile={profile} current="approve" error={query.error ?? ""} notice={query.notice ?? ""}>
         <HistoryPanel profile={profile} history={history} versions={versions} comparison={comparison} />
-      </RoleProfileFrame>
+      </WorkflowShell>
     );
   } catch (error) {
     return <ProfileLoadError error={error} />;

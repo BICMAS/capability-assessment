@@ -66,13 +66,13 @@ type SessionSkill struct {
 }
 
 type Session struct {
-	ID         string            `json:"id"`
-	PlanID     string            `json:"planId"`
-	PersonID   string            `json:"personId"`
-	Status     string            `json:"status"`
-	Confirmed  bool              `json:"confirmed,omitempty"`
-	Proposals  []SessionProposal `json:"proposals,omitempty"`
-	Skills     []SessionSkill    `json:"skills"`
+	ID        string            `json:"id"`
+	PlanID    string            `json:"planId"`
+	PersonID  string            `json:"personId"`
+	Status    string            `json:"status"`
+	Confirmed bool              `json:"confirmed,omitempty"`
+	Proposals []SessionProposal `json:"proposals,omitempty"`
+	Skills    []SessionSkill    `json:"skills"`
 }
 
 type SessionProposal struct {
@@ -84,8 +84,8 @@ type SessionProposal struct {
 }
 
 type SessionConfirmation struct {
-	Session      Session                  `json:"session"`
-	Explanations []ConfirmedExplanation   `json:"explanations"`
+	Session      Session                `json:"session"`
+	Explanations []ConfirmedExplanation `json:"explanations"`
 }
 
 type ConfirmedExplanation struct {

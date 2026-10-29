@@ -527,6 +527,57 @@ paths:
                 $ref: "#/components/schemas/RoleProfileVersion"
         "409":
           description: Stale revision or the version is no longer a draft
+  /role-profile-versions/{versionId}/job-description:
+    post:
+      operationId: uploadRoleJobDescription
+      summary: Store a job description file on a draft
+      description: TXT, PDF, DOC, and DOCX files up to 5 MB are stored. Text is returned only for a plain-text file so the user can review and save it. PDF and Word files are not parsed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Stored file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleJobDescriptionFile"
+        "400":
+          description: The file type or contents are not accepted
+        "403":
+          description: The caller cannot maintain role profiles
+  /role-profile-versions/{versionId}/job-description/{fileId}:
+    get:
+      operationId: downloadRoleJobDescription
+      summary: Download a stored job description file
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stored file bytes
+        "403":
+          description: The caller cannot maintain role profiles
+        "404":
+          description: The file was not found
   /role-profile-versions/{versionId}/skills:
     post:
       operationId: addRoleProfileSkill
@@ -618,6 +669,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleProfileVersion"
+  /role-profile-versions/{versionId}/skill-edits:
+    post:
+      operationId: saveRoleProfileSkillEdits
+      summary: Save reviewed skill edits on a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveRoleProfileSkillEdits"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+  /role-profile-versions/{versionId}/skill-merges:
+    post:
+      operationId: mergeRoleProfileSkills
+      summary: Merge two skills on a draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeRoleProfileSkills"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
   /role-profile-versions/{versionId}/submit:
     post:
       operationId: submitRoleProfile
@@ -644,8 +737,8 @@ paths:
   /role-profile-versions/{versionId}/publish:
     post:
       operationId: publishRoleProfile
-      summary: Publish a profile that is in review
-      description: Publication is a server-side transition from profile_in_review. Clients cannot set the published status directly.
+      summary: Publish the final approval stage
+      description: Publication succeeds only when every earlier configured stage has been approved and this version is on the final stage. Administrators and business leaders may publish that final stage. The same transaction marks any earlier published version of the profile as profile_superseded and keeps that version as a historical snapshot. Clients cannot set the status directly.
       security:
         - bearerAuth: []
       parameters:
@@ -711,6 +804,150 @@ paths:
                 $ref: "#/components/schemas/RoleProfileComment"
         "409":
           description: Comments are only accepted while the version is in review
+  /role-profile-workflow:
+    get:
+      operationId: getRoleProfileApprovalPath
+      summary: Read the organisation approval path
+      description: Returns the configured stages, or the default HR/L&D, line manager, and business leader path when none is stored.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Approval stages in order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleProfileApprovalPathStage"
+    put:
+      operationId: saveRoleProfileApprovalPath
+      summary: Replace the organisation approval path
+      description: Administrators and HR/L&D specialists configure the stages used by later submissions. An open review keeps the stages it started with.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveRoleProfileApprovalPath"
+      responses:
+        "200":
+          description: Stored approval stages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleProfileApprovalPathStage"
+  /role-profile-approvals:
+    get:
+      operationId: listRoleProfileApprovalQueue
+      summary: List approval work for the current person
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [awaiting, submitted, reviewed]
+      responses:
+        "200":
+          description: Profiles visible in the requested view
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleProfileApprovalQueueItem"
+  /role-profile-versions/{versionId}/resubmit:
+    post:
+      operationId: resubmitRoleProfile
+      summary: Start a new approval cycle after rejection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleProfileRevision"
+      responses:
+        "200":
+          description: Version returned to the first configured stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+  /role-profile-versions/{versionId}/approval-assignments:
+    post:
+      operationId: assignRoleProfileApproval
+      summary: Assign a person to decide on a version that is in review
+      description: Administrators and HR/L&D specialists assign the approver. The version must be profile_in_review.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRoleProfileApproval"
+      responses:
+        "201":
+          description: Approval assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileApprovalAssignment"
+        "409":
+          description: The version is not in review, or this person is already assigned
+  /role-profile-versions/{versionId}/approvals:
+    get:
+      operationId: listRoleProfileApprovals
+      summary: List approval assignments and decisions for one version
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      responses:
+        "200":
+          description: Assignments and decisions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileApprovals"
+  /role-profile-versions/{versionId}/approval-decisions:
+    post:
+      operationId: decideRoleProfileApproval
+      summary: Record an approval decision
+      description: Administrators and business leaders may call this. The actor must be the assignee unless the actor is an administrator. approved publishes the version. changes_requested returns it to profile_draft. rejected records the decision and leaves the version in review.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/versionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideRoleProfileApproval"
+      responses:
+        "200":
+          description: Version after the decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleProfileVersion"
+        "403":
+          description: The actor is not allowed to decide this assignment
+        "409":
+          description: The version is not in review or the revision is stale
   /role-profile-versions/{versionId}/clarification:
     post:
       operationId: startRoleProfileClarification
@@ -1180,7 +1417,8 @@ components:
       enum: [ai_suggested, hr_adjusted, imported, manually_added]
     ProfileStatus:
       type: string
-      enum: [profile_draft, profile_in_review, profile_published]
+      enum: [profile_draft, profile_in_review, profile_published, profile_superseded]
+      description: profile_published is the approved snapshot. profile_superseded is an earlier approved snapshot kept after a newer version is published.
     CreateRoleProfile:
       type: object
       additionalProperties: false
@@ -1244,6 +1482,18 @@ components:
           nullable: true
         reportingLevel:
           type: string
+        organogramId:
+          type: string
+          description: Organogram that contains the selected position. Empty when the draft is not linked to a position.
+        positionId:
+          type: string
+          description: Selected organogram position. Department and reporting line stay in the directory.
+        businessUnit:
+          type: string
+        subIndustry:
+          type: string
+        organisationalContext:
+          type: string
         frameworkVersionId:
           type: string
         sources:
@@ -1259,6 +1509,20 @@ components:
         createdAt:
           type: string
           format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+        submittedByPersonId:
+          type: string
+        submissionCycle:
+          type: integer
+        workflowStage:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+        approvedByPersonId:
+          type: string
     RoleProfileSource:
       type: object
       additionalProperties: false
@@ -1270,6 +1534,191 @@ components:
           type: string
         referenceUri:
           type: string
+        kind:
+          type: string
+          enum: [reference, job_description]
+          default: reference
+          description: A job description is a source of kind job_description. Other authorised references use reference. Omitted values are stored as reference.
+        body:
+          type: string
+          description: Job description text entered by the user. Empty when a file was stored without extracted text.
+        origin:
+          type: string
+          enum: [user, imported, ai_suggested]
+          description: user means the person entered it, imported means it came from a stored document, and ai_suggested means a model proposed it. The service does not invent user-supplied text.
+    AssignRoleProfileApproval:
+      type: object
+      additionalProperties: false
+      required: [assigneePersonId]
+      properties:
+        assigneePersonId:
+          type: string
+    RoleProfileApprovalPathStage:
+      type: object
+      additionalProperties: false
+      required: [stageKey, label, requiredRole, position]
+      properties:
+        stageKey:
+          type: string
+        label:
+          type: string
+        requiredRole:
+          type: string
+          enum: [hr, manager, leader]
+        position:
+          type: integer
+          minimum: 1
+    SaveRoleProfileApprovalPath:
+      type: object
+      additionalProperties: false
+      required: [stages]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileApprovalPathStage"
+    RoleProfileApprovalQueueItem:
+      type: object
+      additionalProperties: false
+      required: [profileId, roleName, department, versionId, versionNumber, revision, status, workflowStage, stageLabel, submittedAt, assigneePersonId, outstanding]
+      properties:
+        profileId:
+          type: string
+        roleName:
+          type: string
+        department:
+          type: string
+        versionId:
+          type: string
+        versionNumber:
+          type: integer
+        revision:
+          type: integer
+        status:
+          type: string
+        workflowStage:
+          type: string
+        stageLabel:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        assigneePersonId:
+          type: string
+        outstanding:
+          type: string
+    RoleProfileApprovalAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, profileVersionId, assigneePersonId, assignedByPersonId, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        profileVersionId:
+          type: string
+        assigneePersonId:
+          type: string
+        assignedByPersonId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        stageKey:
+          type: string
+      type: object
+      additionalProperties: false
+      required: [assignmentId, decision, comment, expectedRevision]
+      properties:
+        assignmentId:
+          type: string
+        decision:
+          type: string
+          enum: [approved, rejected, changes_requested]
+        comment:
+          type: string
+        expectedRevision:
+          type: integer
+          minimum: 1
+    RoleProfileApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, profileVersionId, assignmentId, actorPersonId, decision, comment, createdAt]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        profileVersionId:
+          type: string
+        assignmentId:
+          type: string
+        actorPersonId:
+          type: string
+        decision:
+          type: string
+          enum: [approved, rejected, changes_requested]
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        stageKey:
+          type: string
+        submissionCycle:
+          type: integer
+    RoleProfileApprovals:
+      type: object
+      additionalProperties: false
+      required: [assignments, decisions, steps, currentStage, stageLabel, assigneePersonId, outstanding, canDecide, canResubmit]
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileApprovalAssignment"
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileApprovalDecision"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleProfileWorkflowStep"
+        currentStage:
+          type: string
+        stageLabel:
+          type: string
+        assigneePersonId:
+          type: string
+        outstanding:
+          type: string
+        canDecide:
+          type: boolean
+        canResubmit:
+          type: boolean
+    RoleProfileWorkflowStep:
+      type: object
+      additionalProperties: false
+      required: [id, organisationId, profileVersionId, stageKey, label, requiredRole, position]
+      properties:
+        id:
+          type: string
+        organisationId:
+          type: string
+        profileVersionId:
+          type: string
+        stageKey:
+          type: string
+        label:
+          type: string
+        requiredRole:
+          type: string
+          enum: [hr, manager, leader]
+        position:
+          type: integer
+          minimum: 1
     RoleProfileSkill:
       type: object
       additionalProperties: false
@@ -1293,10 +1742,20 @@ components:
           $ref: "#/components/schemas/SkillPriority"
         rationale:
           type: string
+        criteria:
+          type: string
+        displayName:
+          type: string
         provenance:
           $ref: "#/components/schemas/SkillProvenance"
         position:
           type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     RoleProfileAI:
       type: object
       additionalProperties: false
@@ -1339,6 +1798,19 @@ components:
           nullable: true
         reportingLevel:
           type: string
+        organogramId:
+          type: string
+        positionId:
+          type: string
+        businessUnit:
+          type: string
+        subIndustry:
+          type: string
+        organisationalContext:
+          type: string
+        frameworkVersionId:
+          type: string
+          description: Omitted values leave the stored framework unchanged. An empty string clears it.
         sources:
           type: array
           items:
@@ -1350,6 +1822,32 @@ components:
                 type: string
               referenceUri:
                 type: string
+              kind:
+                type: string
+                enum: [reference, job_description]
+              body:
+                type: string
+              origin:
+                type: string
+                enum: [user, imported, ai_suggested]
+    RoleJobDescriptionFile:
+      type: object
+      additionalProperties: false
+      required: [id, fileName, mediaType, byteSize, detail]
+      properties:
+        id:
+          type: string
+        fileName:
+          type: string
+        mediaType:
+          type: string
+        byteSize:
+          type: integer
+        detail:
+          type: string
+        text:
+          type: string
+          description: Present only for a plain-text upload, for the user to review and save. It is not model output.
     AddRoleProfileSkill:
       type: object
       additionalProperties: false
@@ -1370,6 +1868,8 @@ components:
           $ref: "#/components/schemas/SkillPriority"
         rationale:
           type: string
+        criteria:
+          type: string
         provenance:
           type: string
           enum: [imported, manually_added]
@@ -1388,6 +1888,55 @@ components:
         priority:
           $ref: "#/components/schemas/SkillPriority"
         rationale:
+          type: string
+        displayName:
+          type: string
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        criteria:
+          type: string
+    SaveRoleProfileSkillEdits:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, edits]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        edits:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [skillAssignmentId, definition, requiredProficiency, priority, rationale]
+            properties:
+              skillAssignmentId:
+                type: string
+              definition:
+                type: string
+              requiredProficiency:
+                type: integer
+              priority:
+                $ref: "#/components/schemas/SkillPriority"
+              rationale:
+                type: string
+              displayName:
+                type: string
+              category:
+                $ref: "#/components/schemas/SkillCategory"
+              criteria:
+                type: string
+    MergeRoleProfileSkills:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, keepId, removeId]
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        keepId:
+          type: string
+        removeId:
           type: string
     ReorderRoleProfileSkills:
       type: object
@@ -1495,6 +2044,30 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RoleProfileComment"
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, profileVersionId, skillAssignmentId, actorPersonId, fields, rationale, occurredAt]
+            properties:
+              id:
+                type: string
+              profileVersionId:
+                type: string
+              skillAssignmentId:
+                type: string
+              actorPersonId:
+                type: string
+              fields:
+                type: array
+                items:
+                  type: string
+              rationale:
+                type: string
+              occurredAt:
+                type: string
+                format: date-time
     RoleProfileClarification:
       type: object
       additionalProperties: false
@@ -1543,6 +2116,18 @@ components:
           type: string
         unresolved:
           type: boolean
+        authoredBy:
+          type: string
+          enum: [service, model, service_after_model_error]
+          description: service questions are prepared from recorded gaps. model questions use provider wording. service_after_model_error means the provider failed and the service question was kept.
+        reason:
+          type: string
+          description: Why this question is being asked.
+        options:
+          type: array
+          items:
+            type: string
+          description: Predefined answers when the field has a fixed set of values.
         askedActorId:
           type: string
         answeredActorId:
@@ -1576,6 +2161,18 @@ components:
         teamSize:
           type: integer
           nullable: true
+        organogramId:
+          type: string
+        positionId:
+          type: string
+        businessUnit:
+          type: string
+        subIndustry:
+          type: string
+        organisationalContext:
+          type: string
+        frameworkVersionId:
+          type: string
         sources:
           type: array
           items:
@@ -1586,6 +2183,12 @@ components:
               title:
                 type: string
               referenceUri:
+                type: string
+              kind:
+                type: string
+              body:
+                type: string
+              origin:
                 type: string
     RoleProfileAnswers:
       type: object
@@ -1612,6 +2215,8 @@ components:
           type: integer
         idempotencyKey:
           type: string
+        replaceExisting:
+          type: boolean
     RoleProfileGenerationJob:
       type: object
       additionalProperties: false
@@ -1629,6 +2234,8 @@ components:
           type: string
         idempotencyKey:
           type: string
+        replaceExisting:
+          type: boolean
         status:
           type: string
           enum: [queued, running, succeeded, failed, stale, cancelled]

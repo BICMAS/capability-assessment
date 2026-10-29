@@ -25,14 +25,25 @@ func Mount(router chi.Router, store Store, workflow *Workflow) {
 	router.Get("/role-profiles/{profileId}/compare", compare(store))
 	router.Get("/role-profiles/{profileId}/history", history(store))
 	router.Patch("/role-profile-versions/{versionId}", updateContext(store))
+	router.Post("/role-profile-versions/{versionId}/job-description", uploadJobDescription(store))
+	router.Get("/role-profile-versions/{versionId}/job-description/{fileId}", downloadJobDescription(store))
 	router.Post("/role-profile-versions/{versionId}/skills", addSkill(store))
 	router.Patch("/role-profile-versions/{versionId}/skills/{skillAssignmentId}", updateSkill(store))
 	router.Delete("/role-profile-versions/{versionId}/skills/{skillAssignmentId}", removeSkill(store))
 	router.Put("/role-profile-versions/{versionId}/skill-order", reorderSkills(store))
+	router.Post("/role-profile-versions/{versionId}/skill-edits", saveSkillEdits(store))
+	router.Post("/role-profile-versions/{versionId}/skill-merges", mergeSkills(store))
 	router.Post("/role-profile-versions/{versionId}/submit", submit(store))
+	router.Post("/role-profile-versions/{versionId}/resubmit", resubmit(store))
 	router.Post("/role-profile-versions/{versionId}/publish", publish(store))
 	router.Post("/role-profile-versions/{versionId}/next-draft", nextDraft(store))
 	router.Post("/role-profile-versions/{versionId}/comments", comment(store))
+	router.Get("/role-profile-workflow", getApprovalPath(store))
+	router.Put("/role-profile-workflow", saveApprovalPath(store))
+	router.Get("/role-profile-approvals", listApprovalQueue(store))
+	router.Post("/role-profile-versions/{versionId}/approval-assignments", assignApproval(store))
+	router.Get("/role-profile-versions/{versionId}/approvals", listApprovals(store))
+	router.Post("/role-profile-versions/{versionId}/approval-decisions", decideApproval(store))
 	if workflow != nil {
 		router.Post("/role-profile-versions/{versionId}/clarification", startClarification(workflow))
 		router.Get("/role-profile-versions/{versionId}/clarification", readClarification(workflow))
@@ -46,7 +57,7 @@ func Mount(router chi.Router, store Store, workflow *Workflow) {
 
 func createRole(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -63,7 +74,7 @@ func createRole(store Store) http.HandlerFunc {
 
 func createSkill(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -82,7 +93,7 @@ func createSkill(store Store) http.HandlerFunc {
 
 func createDraft(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -100,7 +111,7 @@ func createDraft(store Store) http.HandlerFunc {
 
 func getProfile(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireReader(w, r)
 		if !ok {
 			return
 		}
@@ -111,35 +122,47 @@ func getProfile(store Store) http.HandlerFunc {
 
 func updateContext(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
 		var body struct {
-			ExpectedRevision int      `json:"expectedRevision"`
-			Purpose          string   `json:"purpose"`
-			Responsibilities string   `json:"responsibilities"`
-			BusinessOutcomes string   `json:"businessOutcomes"`
-			DecisionScope    string   `json:"decisionScope"`
-			Industry         string   `json:"industry"`
-			Region           string   `json:"region"`
-			TeamSize         *int     `json:"teamSize"`
-			ReportingLevel   string   `json:"reportingLevel"`
-			Sources          []Source `json:"sources"`
+			ExpectedRevision      int      `json:"expectedRevision"`
+			Purpose               string   `json:"purpose"`
+			Responsibilities      string   `json:"responsibilities"`
+			BusinessOutcomes      string   `json:"businessOutcomes"`
+			DecisionScope         string   `json:"decisionScope"`
+			Industry              string   `json:"industry"`
+			Region                string   `json:"region"`
+			TeamSize              *int     `json:"teamSize"`
+			ReportingLevel        string   `json:"reportingLevel"`
+			OrganogramID          string   `json:"organogramId"`
+			PositionID            string   `json:"positionId"`
+			BusinessUnit          string   `json:"businessUnit"`
+			SubIndustry           string   `json:"subIndustry"`
+			OrganisationalContext string   `json:"organisationalContext"`
+			FrameworkVersionID    *string  `json:"frameworkVersionId"`
+			Sources               []Source `json:"sources"`
 		}
 		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
 			return
 		}
 		version, err := store.UpdateContext(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.ExpectedRevision, Context{
-			Purpose:          body.Purpose,
-			Responsibilities: body.Responsibilities,
-			BusinessOutcomes: body.BusinessOutcomes,
-			DecisionScope:    body.DecisionScope,
-			Industry:         body.Industry,
-			Region:           body.Region,
-			TeamSize:         body.TeamSize,
-			ReportingLevel:   body.ReportingLevel,
-			Sources:          body.Sources,
+			Purpose:               body.Purpose,
+			Responsibilities:      body.Responsibilities,
+			BusinessOutcomes:      body.BusinessOutcomes,
+			DecisionScope:         body.DecisionScope,
+			Industry:              body.Industry,
+			Region:                body.Region,
+			TeamSize:              body.TeamSize,
+			ReportingLevel:        body.ReportingLevel,
+			OrganogramID:          body.OrganogramID,
+			PositionID:            body.PositionID,
+			BusinessUnit:          body.BusinessUnit,
+			SubIndustry:           body.SubIndustry,
+			OrganisationalContext: body.OrganisationalContext,
+			FrameworkVersionID:    body.FrameworkVersionID,
+			Sources:               body.Sources,
 		})
 		writeResult(w, http.StatusOK, version, err)
 	}
@@ -147,7 +170,7 @@ func updateContext(store Store) http.HandlerFunc {
 
 func addSkill(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -159,6 +182,7 @@ func addSkill(store Store) http.HandlerFunc {
 			RequiredProficiency int    `json:"requiredProficiency"`
 			Priority            string `json:"priority"`
 			Rationale           string `json:"rationale"`
+			Criteria            string `json:"criteria"`
 			Provenance          string `json:"provenance"`
 		}
 		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
@@ -171,6 +195,7 @@ func addSkill(store Store) http.HandlerFunc {
 			RequiredProficiency: body.RequiredProficiency,
 			Priority:            body.Priority,
 			Rationale:           body.Rationale,
+			Criteria:            body.Criteria,
 			Provenance:          body.Provenance,
 		})
 		writeResult(w, http.StatusCreated, version, err)
@@ -179,16 +204,19 @@ func addSkill(store Store) http.HandlerFunc {
 
 func updateSkill(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
 		var body struct {
-			ExpectedRevision    int    `json:"expectedRevision"`
-			Definition          string `json:"definition"`
-			RequiredProficiency int    `json:"requiredProficiency"`
-			Priority            string `json:"priority"`
-			Rationale           string `json:"rationale"`
+			ExpectedRevision    int     `json:"expectedRevision"`
+			Definition          string  `json:"definition"`
+			RequiredProficiency int     `json:"requiredProficiency"`
+			Priority            string  `json:"priority"`
+			Rationale           string  `json:"rationale"`
+			DisplayName         *string `json:"displayName"`
+			Category            *string `json:"category"`
+			Criteria            *string `json:"criteria"`
 		}
 		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
 			return
@@ -198,6 +226,9 @@ func updateSkill(store Store) http.HandlerFunc {
 			RequiredProficiency: body.RequiredProficiency,
 			Priority:            body.Priority,
 			Rationale:           body.Rationale,
+			DisplayName:         body.DisplayName,
+			Category:            body.Category,
+			Criteria:            body.Criteria,
 		})
 		writeResult(w, http.StatusOK, version, err)
 	}
@@ -205,7 +236,7 @@ func updateSkill(store Store) http.HandlerFunc {
 
 func removeSkill(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -220,7 +251,7 @@ func removeSkill(store Store) http.HandlerFunc {
 
 func reorderSkills(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -236,9 +267,70 @@ func reorderSkills(store Store) http.HandlerFunc {
 	}
 }
 
+func saveSkillEdits(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireMaintainer(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			ExpectedRevision int `json:"expectedRevision"`
+			Edits            []struct {
+				SkillAssignmentID   string  `json:"skillAssignmentId"`
+				Definition          string  `json:"definition"`
+				RequiredProficiency int     `json:"requiredProficiency"`
+				Priority            string  `json:"priority"`
+				Rationale           string  `json:"rationale"`
+				DisplayName         *string `json:"displayName"`
+				Category            *string `json:"category"`
+				Criteria            *string `json:"criteria"`
+			} `json:"edits"`
+		}
+		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
+			return
+		}
+		edits := make([]SkillRevision, 0, len(body.Edits))
+		for _, edit := range body.Edits {
+			edits = append(edits, SkillRevision{
+				AssignmentID: edit.SkillAssignmentID,
+				Edit: SkillEdit{
+					Definition:          edit.Definition,
+					RequiredProficiency: edit.RequiredProficiency,
+					Priority:            edit.Priority,
+					Rationale:           edit.Rationale,
+					DisplayName:         edit.DisplayName,
+					Category:            edit.Category,
+					Criteria:            edit.Criteria,
+				},
+			})
+		}
+		version, err := store.SaveEdits(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.ExpectedRevision, edits)
+		writeResult(w, http.StatusOK, version, err)
+	}
+}
+
+func mergeSkills(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireMaintainer(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			ExpectedRevision int    `json:"expectedRevision"`
+			KeepID           string `json:"keepId"`
+			RemoveID         string `json:"removeId"`
+		}
+		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
+			return
+		}
+		version, err := store.MergeSkills(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.KeepID, body.RemoveID, body.ExpectedRevision)
+		writeResult(w, http.StatusOK, version, err)
+	}
+}
+
 func listVersions(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireReader(w, r)
 		if !ok {
 			return
 		}
@@ -249,7 +341,7 @@ func listVersions(store Store) http.HandlerFunc {
 
 func compare(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireReader(w, r)
 		if !ok {
 			return
 		}
@@ -259,20 +351,20 @@ func compare(store Store) http.HandlerFunc {
 }
 
 func submit(store Store) http.HandlerFunc {
-	return revisionAction(func(r *http.Request, claims token.Claims, expected int) (Version, error) {
+	return revisionAction(func(claims token.Claims) bool { return claims.CanMaintainRoleProfiles() }, func(r *http.Request, claims token.Claims, expected int) (Version, error) {
 		return store.Submit(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, expected)
 	})
 }
 
 func publish(store Store) http.HandlerFunc {
-	return revisionAction(func(r *http.Request, claims token.Claims, expected int) (Version, error) {
+	return revisionAction(func(claims token.Claims) bool { return claims.CanApproveRoleProfiles() }, func(r *http.Request, claims token.Claims, expected int) (Version, error) {
 		return store.Publish(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, expected)
 	})
 }
 
 func nextDraft(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -287,7 +379,7 @@ func nextDraft(store Store) http.HandlerFunc {
 
 func comment(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -304,7 +396,7 @@ func comment(store Store) http.HandlerFunc {
 
 func history(store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireReader(w, r)
 		if !ok {
 			return
 		}
@@ -313,9 +405,9 @@ func history(store Store) http.HandlerFunc {
 	}
 }
 
-func revisionAction(run func(*http.Request, token.Claims, int) (Version, error)) http.HandlerFunc {
+func revisionAction(allowed func(token.Claims) bool, run func(*http.Request, token.Claims, int) (Version, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireAccess(w, r, allowed)
 		if !ok {
 			return
 		}
@@ -358,17 +450,139 @@ func positiveRevision(w http.ResponseWriter, revision int) bool {
 	return true
 }
 
-func requireAdmin(w http.ResponseWriter, r *http.Request) (token.Claims, bool) {
+func requireMaintainer(w http.ResponseWriter, r *http.Request) (token.Claims, bool) {
+	return requireAccess(w, r, func(claims token.Claims) bool { return claims.CanMaintainRoleProfiles() })
+}
+
+func requireApprover(w http.ResponseWriter, r *http.Request) (token.Claims, bool) {
+	return requireAccess(w, r, func(claims token.Claims) bool { return claims.CanApproveRoleProfiles() })
+}
+
+func requireReader(w http.ResponseWriter, r *http.Request) (token.Claims, bool) {
+	return requireAccess(w, r, func(claims token.Claims) bool { return claims.CanReadRoleProfiles() })
+}
+
+func requireAccess(w http.ResponseWriter, r *http.Request, allowed func(token.Claims) bool) (token.Claims, bool) {
 	claims, ok := token.ClaimsFromContext(r.Context())
 	if !ok {
 		writeCode(w, http.StatusUnauthorized, "unauthorized")
 		return token.Claims{}, false
 	}
-	if !claims.HasRole("admin") {
+	if !allowed(claims) {
 		writeCode(w, http.StatusForbidden, "forbidden")
 		return token.Claims{}, false
 	}
 	return claims, true
+}
+
+func assignApproval(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireMaintainer(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			AssigneePersonID string `json:"assigneePersonId"`
+		}
+		if !decode(w, r, &body) {
+			return
+		}
+		assignment, err := store.AssignApproval(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.AssigneePersonID)
+		writeResult(w, http.StatusCreated, assignment, err)
+	}
+}
+
+func listApprovals(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireReader(w, r)
+		if !ok {
+			return
+		}
+		record, err := store.ListApprovals(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, claims.Roles)
+		writeResult(w, http.StatusOK, record, err)
+	}
+}
+
+func decideApproval(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireReader(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			AssignmentID     string `json:"assignmentId"`
+			Decision         string `json:"decision"`
+			Comment          string `json:"comment"`
+			ExpectedRevision int    `json:"expectedRevision"`
+		}
+		if !decode(w, r, &body) || !positiveRevision(w, body.ExpectedRevision) {
+			return
+		}
+		version, err := store.DecideApproval(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), body.AssignmentID, claims.PersonID, body.Decision, body.Comment, body.ExpectedRevision, claims.HasRole(token.RoleAdministrator), claims.Roles)
+		writeResult(w, http.StatusOK, version, err)
+	}
+}
+
+func resubmit(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireReader(w, r)
+		if !ok {
+			return
+		}
+		expected, ok := expectedBody(w, r)
+		if !ok {
+			return
+		}
+		version, err := store.Resubmit(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, expected, claims.Roles)
+		writeResult(w, http.StatusOK, version, err)
+	}
+}
+
+func getApprovalPath(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireReader(w, r)
+		if !ok {
+			return
+		}
+		stages, err := store.GetApprovalPath(r.Context(), claims.OrganisationID)
+		writeResult(w, http.StatusOK, stages, err)
+	}
+}
+
+func saveApprovalPath(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireMaintainer(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			Stages []ApprovalPathStage `json:"stages"`
+		}
+		if !decode(w, r, &body) {
+			return
+		}
+		if err := store.SaveApprovalPath(r.Context(), claims.OrganisationID, claims.PersonID, body.Stages); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		stages, err := store.GetApprovalPath(r.Context(), claims.OrganisationID)
+		writeResult(w, http.StatusOK, stages, err)
+	}
+}
+
+func listApprovalQueue(store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := requireReader(w, r)
+		if !ok {
+			return
+		}
+		view := r.URL.Query().Get("view")
+		if view == "" {
+			view = QueueAwaiting
+		}
+		items, err := store.ListApprovalQueue(r.Context(), claims.OrganisationID, claims.PersonID, view, claims.Roles)
+		writeResult(w, http.StatusOK, items, err)
+	}
 }
 
 func decode(w http.ResponseWriter, r *http.Request, body any) bool {
@@ -415,6 +629,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeCode(w, http.StatusConflict, "cancelled")
 	case errors.Is(err, ErrUnavailable):
 		writeCode(w, http.StatusServiceUnavailable, "unavailable")
+	case errors.Is(err, ErrForbidden):
+		writeCode(w, http.StatusForbidden, "forbidden")
 	default:
 		writeCode(w, http.StatusInternalServerError, "unexpected")
 	}

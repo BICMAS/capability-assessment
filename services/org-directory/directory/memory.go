@@ -11,6 +11,9 @@ type Memory struct {
 	departments []Department
 	people      []Person
 	assignments []RoleAssignment
+	organograms []Organogram
+	positions   []Position
+	files       []StoredOrganogramFile
 }
 
 func (m *Memory) ListDepartments(_ context.Context, organisationID string) ([]Department, error) {

@@ -154,4 +154,3 @@ func callIndicator(t *testing.T, handler http.Handler, claims token.Claims, vers
 	handler.ServeHTTP(response, request)
 	return response
 }
-

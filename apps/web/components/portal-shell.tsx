@@ -46,6 +46,7 @@ export function PortalShell({
         </div>
         <div className="nav-session">
           <p className="nav-name">{session.name}</p>
+          <p className="nav-role">{accountLabel(session.roles)}</p>
           <form action="/session/sign-out" method="post">
             <button type="submit">Sign out</button>
           </form>
@@ -72,6 +73,25 @@ function currentLink(pathname: string, href: string): boolean {
     return pathname.startsWith("/admin/role-profiles") && !pathname.startsWith("/admin/role-profiles/review");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function accountLabel(roles: readonly string[]): string {
+  if (roles.includes("admin")) {
+    return "Administrator";
+  }
+  if (roles.includes("hr")) {
+    return "HR and L&D";
+  }
+  if (roles.includes("leader")) {
+    return "Business leader";
+  }
+  if (roles.includes("manager")) {
+    return "Line manager";
+  }
+  if (roles.includes("employee")) {
+    return "Employee";
+  }
+  return "Signed in";
 }
 
 function pageHeading(area: Area, pathname: string): { kicker: string; title: string } | null {

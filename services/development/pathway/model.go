@@ -12,13 +12,15 @@ var (
 )
 
 const (
-	StageLearn     = "learn"
-	StagePractise  = "practise"
-	StageApply     = "apply"
-	StageValidate  = "validate"
-	StatusReady    = "ready"
-	StatusComplete = "complete"
-	StatusUpcoming = "upcoming"
+	StageLearn        = "learn"
+	StagePractise     = "practise"
+	StageApply        = "apply"
+	StageValidate     = "validate"
+	StatusReady       = "ready"
+	StatusComplete    = "complete"
+	StatusUpcoming    = "upcoming"
+	StatusRecommended = "recommended"
+	VoiceUnconfigured = "unconfigured"
 )
 
 type Mapping struct {
@@ -83,7 +85,14 @@ type Publisher interface {
 
 type Store interface {
 	MapCourse(ctx context.Context, input MappingInput) (Mapping, error)
+	FindCourse(ctx context.Context, organisationID, capabilityID string, targetLevel int) (Mapping, error)
 	CreatePathway(ctx context.Context, input PathwayInput) (Pathway, error)
 	GetPathway(ctx context.Context, organisationID, personID, capabilityID string) (Pathway, error)
 	Complete(ctx context.Context, input CompletionInput) (Pathway, bool, error)
+	SaveResource(ctx context.Context, input ResourceInput) (Resource, error)
+	ListResources(ctx context.Context, organisationID string) ([]Resource, error)
+	SaveRecommendation(ctx context.Context, input LearningRecommendation) (LearningRecommendation, error)
+	ListRecommendations(ctx context.Context, organisationID, personID string) ([]LearningRecommendation, error)
+	SavePractice(ctx context.Context, input PracticeInput) (PracticeRecord, error)
+	ListPractice(ctx context.Context, organisationID, personID string) ([]PracticeRecord, error)
 }

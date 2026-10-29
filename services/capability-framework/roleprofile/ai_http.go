@@ -8,7 +8,7 @@ import (
 
 func startClarification(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -19,7 +19,7 @@ func startClarification(workflow *Workflow) http.HandlerFunc {
 
 func readClarification(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -30,7 +30,7 @@ func readClarification(workflow *Workflow) http.HandlerFunc {
 
 func answerClarification(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -58,18 +58,19 @@ func answerClarification(workflow *Workflow) http.HandlerFunc {
 
 func startGeneration(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
 		var body struct {
-			ContextVersion int    `json:"contextVersion"`
-			IdempotencyKey string `json:"idempotencyKey"`
+			ContextVersion  int    `json:"contextVersion"`
+			IdempotencyKey  string `json:"idempotencyKey"`
+			ReplaceExisting bool   `json:"replaceExisting"`
 		}
 		if !decode(w, r, &body) {
 			return
 		}
-		job, err := workflow.Enqueue(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.IdempotencyKey, body.ContextVersion)
+		job, err := workflow.Enqueue(r.Context(), claims.OrganisationID, chi.URLParam(r, "versionId"), claims.PersonID, body.IdempotencyKey, body.ContextVersion, body.ReplaceExisting)
 		status := http.StatusAccepted
 		if err == nil && job.Status != JobQueued && job.Status != JobRunning {
 			status = http.StatusOK
@@ -80,7 +81,7 @@ func startGeneration(workflow *Workflow) http.HandlerFunc {
 
 func readGeneration(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -91,7 +92,7 @@ func readGeneration(workflow *Workflow) http.HandlerFunc {
 
 func retryGeneration(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}
@@ -102,7 +103,7 @@ func retryGeneration(workflow *Workflow) http.HandlerFunc {
 
 func cancelGeneration(workflow *Workflow) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := requireAdmin(w, r)
+		claims, ok := requireMaintainer(w, r)
 		if !ok {
 			return
 		}

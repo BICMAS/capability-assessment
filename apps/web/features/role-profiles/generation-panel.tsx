@@ -14,6 +14,7 @@ export function GenerationPanel({
   contextVersion,
   idempotencyKey,
   editable,
+  hasDraft = false,
   job,
 }: {
   profileId: string;
@@ -21,6 +22,7 @@ export function GenerationPanel({
   contextVersion: number;
   idempotencyKey: string;
   editable: boolean;
+  hasDraft?: boolean;
   job: Settled<GenerationJob> | null;
 }) {
   const current = job?.ok ? job.value : null;
@@ -29,7 +31,7 @@ export function GenerationPanel({
     <section className="directory">
       <h2>Generation</h2>
       <JobRefresh active={active} />
-      {editable && contextVersion > 0 ? (
+      {editable && contextVersion > 0 && !hasDraft ? (
         <form action={startGenerationForm} className="framework-form">
           <input type="hidden" name="profileId" value={profileId} />
           <input type="hidden" name="versionId" value={versionId} />
@@ -38,7 +40,22 @@ export function GenerationPanel({
           <p>Context version {contextVersion}. The request returns when the job is stored.</p>
           <PendingButton className="primary">Queue generation</PendingButton>
         </form>
-      ) : (
+      ) : null}
+      {editable && contextVersion > 0 && hasDraft ? (
+        <form action={startGenerationForm} className="framework-form">
+          <input type="hidden" name="profileId" value={profileId} />
+          <input type="hidden" name="versionId" value={versionId} />
+          <input type="hidden" name="contextVersion" value={contextVersion} />
+          <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+          <input type="hidden" name="replaceExisting" value="yes" />
+          <p>This draft already has skills. Replacing removes the current AI suggestions and keeps skills a person added or adjusted. Earlier generation jobs stay on record.</p>
+          <label>
+            <input type="checkbox" name="confirmReplace" required /> Confirm replacement of the current AI suggestions
+          </label>
+          <PendingButton className="primary">Replace AI suggestions</PendingButton>
+        </form>
+      ) : null}
+      {editable && contextVersion > 0 ? null : (
         <p>Queue generation from a draft that has a saved context version.</p>
       )}
       {job && !job.ok ? <StatusMessage tone="error">{job.error}</StatusMessage> : null}
@@ -80,6 +97,9 @@ export function GenerationPanel({
             </div>
           </dl>
           {current.lastError === "timeout" ? <StatusMessage>The provider timed out. Retry the same job.</StatusMessage> : null}
+          {current.lastError === "provider" || current.lastError === "transient" || current.lastError === "rate_limit" ? (
+            <StatusMessage tone="error">The model provider is unavailable. Retry the same job.</StatusMessage>
+          ) : null}
           {current.lastError && current.lastError !== "timeout" ? <p>Last error: {current.lastError}</p> : null}
           {current.uncertainty.length > 0 ? <p>Uncertainty: {current.uncertainty.join(", ")}. This is not proof the draft is correct.</p> : null}
           {current.unsupported.length > 0 ? (

@@ -18,3 +18,18 @@ export async function requireSession(role: Role): Promise<Session> {
   }
   return session;
 }
+
+export async function requireAnyRole(roles: readonly Role[]): Promise<Session> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) {
+    redirect("/");
+  }
+  const session = await fetchSession(token);
+  if (!session) {
+    redirect("/");
+  }
+  if (!roles.some((role) => session.roles.includes(role))) {
+    redirect(homeFor(session.roles) ?? "/");
+  }
+  return session;
+}
