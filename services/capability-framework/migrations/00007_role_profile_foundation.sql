@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose StatementBegin
 DO $$
 DECLARE
     constraint_name text;
@@ -14,6 +15,7 @@ BEGIN
     END IF;
     EXECUTE format('ALTER TABLE role_profile_versions DROP CONSTRAINT %I', constraint_name);
 END $$;
+-- +goose StatementEnd
 
 ALTER TABLE role_profile_versions
     ADD CONSTRAINT role_profile_versions_status_check

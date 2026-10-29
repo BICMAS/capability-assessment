@@ -14,6 +14,7 @@ ALTER TABLE role_profile_versions
 ALTER TABLE role_profile_approval_assignments
     ADD COLUMN stage_key text NOT NULL DEFAULT '';
 
+-- +goose StatementBegin
 DO $$
 DECLARE
     constraint_name text;
@@ -27,6 +28,7 @@ BEGIN
         EXECUTE format('ALTER TABLE role_profile_approval_assignments DROP CONSTRAINT %I', constraint_name);
     END IF;
 END $$;
+-- +goose StatementEnd
 
 ALTER TABLE role_profile_approval_assignments
     ADD CONSTRAINT role_profile_approval_assignments_stage_key
