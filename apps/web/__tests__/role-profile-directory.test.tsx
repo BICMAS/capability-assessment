@@ -64,6 +64,8 @@ describe("role profile directory", () => {
     );
     expect(screen.getByRole("navigation", { name: "Role skills workflow" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Upload Organogram/ }).getAttribute("aria-current")).toBe("step");
+    expect(screen.getByText("Upload a spreadsheet, build the chart, or import the template.")).toBeTruthy();
+    expect(screen.queryByText("Select the organogram position and record the purpose, outcomes, responsibilities, and context for that role.")).toBeNull();
     expect(screen.queryByRole("link", { name: /Provide Role Information/ })).toBeNull();
     expect(screen.queryByRole("link", { name: /Use the Insights/ })).toBeNull();
 

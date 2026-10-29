@@ -15,19 +15,16 @@ export function WorkflowStepper({
   evidence?: WorkflowEvidence | null;
 }) {
   const stages = buildWorkflow({ profile, current, evidence });
+  const currentStage = stages.find((stage) => stage.current);
   return (
     <nav className="workflow-nav" aria-label="Role skills workflow">
       <ol>
         {stages.map((stage) => {
-          const label = stageStateLabel(stage);
           const body = (
             <>
               <span className="workflow-index">{stage.number}</span>
-              <span className="workflow-copy">
-                <span className="workflow-title">{stage.title}</span>
-                <span className="workflow-summary">{stage.description}</span>
-                <span className="workflow-state">{label}</span>
-              </span>
+              <span className="workflow-title">{stage.title}</span>
+              <span className="workflow-status-hidden">{stageStateLabel(stage)}</span>
             </>
           );
           return (
@@ -45,6 +42,12 @@ export function WorkflowStepper({
           );
         })}
       </ol>
+      {currentStage ? (
+        <div className="workflow-current">
+          <p className="workflow-state">{stageStateLabel(currentStage)}</p>
+          <p className="workflow-summary">{currentStage.description}</p>
+        </div>
+      ) : null}
     </nav>
   );
 }
