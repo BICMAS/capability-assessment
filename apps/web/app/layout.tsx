@@ -1,16 +1,18 @@
 import type { ReactNode } from "react";
-import { Fraunces, Instrument_Sans } from "next/font/google";
+import { Manrope, Playfair_Display } from "next/font/google";
 
 import "./globals.css";
 
-const display = Fraunces({
+const display = Playfair_Display({
   subsets: ["latin"],
+  weight: ["500", "600"],
   display: "swap",
   variable: "--font-display",
 });
 
-const interfaceType = Instrument_Sans({
+const interfaceType = Manrope({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-sans",
 });

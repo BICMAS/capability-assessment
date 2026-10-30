@@ -32,9 +32,13 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   return (
     <WorkflowShell token={token} current="approve" error={query.error ?? ""} notice={query.notice ?? ""}>
       <h2>Approvals</h2>
-      <nav className="skill-filters" aria-label="Approval views">
+      <nav className="skill-filters ds-tabs" aria-label="Approval views">
         {views.map((item) => (
-          <Link key={item.id} href={item.id === "awaiting" ? "/admin/role-profiles/review" : `/admin/role-profiles/review?view=${item.id}`}>
+          <Link
+            key={item.id}
+            href={item.id === "awaiting" ? "/admin/role-profiles/review" : `/admin/role-profiles/review?view=${item.id}`}
+            aria-current={view === item.id ? "page" : undefined}
+          >
             {item.label}
           </Link>
         ))}
