@@ -14,9 +14,14 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: clip;
   color: var(--ink);
   background: var(--field);
   font-family: var(--type-interface);
@@ -125,8 +130,10 @@ input[type="file"]::file-selector-button {
 :focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
-  padding: 2rem 1.25rem;
-  background: #d7efb8;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .entrance-frame {
@@ -1788,16 +1795,21 @@ input[type="file"]::file-selector-button {
 
 .workflow-nav ol {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .workflow-nav li {
   flex: 1 1 9.5rem;
   min-width: 9.5rem;
+  scroll-snap-align: start;
 }
 
 .workflow-nav a,
@@ -2214,23 +2226,48 @@ input[type="file"]::file-selector-button {
 }
 
 .chart-confirm {
+  display: grid;
+  gap: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   background: var(--color-white);
   box-shadow: var(--shadow-lg);
-  gap: 0.75rem;
+}
+
+.chart-confirm[role="dialog"] {
+  position: relative;
+  z-index: 40;
+}
+
+@media (max-width: 1100px) {
+  .workflow-nav li {
+    flex: 0 0 11rem;
+    min-width: 11rem;
+  }
 }
 
 @media (max-width: 640px) {
+  .workflow-nav {
+    padding: var(--space-3);
+  }
+
   .workflow-nav ol {
-    flex-direction: column;
+    flex-wrap: nowrap;
+    padding-bottom: var(--space-1);
   }
 
   .workflow-nav li {
-    flex-basis: auto;
-    min-width: 0;
-    width: 100%;
+    flex: 0 0 10.5rem;
+    min-width: 10.5rem;
+  }
+
+  .workflow-current {
+    padding: var(--space-3);
+  }
+
+  .workflow-title {
+    font-size: var(--font-size-small);
   }
 }
 

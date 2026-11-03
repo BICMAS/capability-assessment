@@ -54,6 +54,7 @@ export async function WorkflowShell({
   error = "",
   notice = "",
   clarificationComplete = null,
+  evidence,
   children,
 }: {
   token: string;
@@ -62,17 +63,16 @@ export async function WorkflowShell({
   error?: string;
   notice?: string;
   clarificationComplete?: boolean | null;
+  evidence?: WorkflowEvidence;
   children: ReactNode;
 }) {
-  const charts = await settle(listOrganograms(token), "Organograms");
+  let resolved = evidence;
+  if (!resolved) {
+    const charts = await settle(listOrganograms(token), "Organograms");
+    resolved = { organogramCount: charts.ok ? charts.value.length : null, clarificationComplete };
+  }
   return (
-    <RoleProfileFrame
-      profile={profile}
-      current={current}
-      error={error}
-      notice={notice}
-      evidence={{ organogramCount: charts.ok ? charts.value.length : null, clarificationComplete }}
-    >
+    <RoleProfileFrame profile={profile} current={current} error={error} notice={notice} evidence={resolved}>
       {children}
     </RoleProfileFrame>
   );

@@ -19,6 +19,18 @@
   text-decoration: none;
 }
 
+.ds-button:focus-visible,
+.ds-button-secondary:focus-visible,
+.ds-button-primary:focus-visible,
+.ds-button-ghost:focus-visible,
+.ds-tabs a:focus-visible,
+.ds-tabs button:focus-visible,
+.ds-input:focus-visible,
+.ds-select:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .ds-button-primary {
   border-color: var(--color-forest);
   background: var(--color-forest);
@@ -110,6 +122,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .ds-button,
+  .ds-button-secondary,
+  .ds-button-primary {
+    min-height: 44px;
+  }
+
+  .ds-input,
+  .ds-select {
+    min-height: 44px;
+  }
 }
 
 .ds-tabs a,

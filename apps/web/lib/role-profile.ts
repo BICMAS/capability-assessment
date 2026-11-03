@@ -271,6 +271,7 @@ export type ApprovalQueueItem = {
   workflowStage: string;
   stageLabel: string;
   submittedAt: string | null;
+  submittedByPersonId: string;
   assigneePersonId: string;
   outstanding: string;
 };
@@ -629,7 +630,7 @@ function isApprovalQueue(value: unknown): value is ApprovalQueueItem[] {
     value.every(
       (item) =>
         isRecord(item) &&
-        strings(item, ["profileId", "roleName", "department", "versionId", "status", "workflowStage", "stageLabel", "assigneePersonId", "outstanding"]) &&
+        strings(item, ["profileId", "roleName", "department", "versionId", "status", "workflowStage", "stageLabel", "submittedByPersonId", "assigneePersonId", "outstanding"]) &&
         typeof item.versionNumber === "number" &&
         typeof item.revision === "number" &&
         (item.submittedAt === null || typeof item.submittedAt === "string"),

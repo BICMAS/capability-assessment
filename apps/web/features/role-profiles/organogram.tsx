@@ -13,6 +13,7 @@ export function Organogram({
   people,
   roles,
   error,
+  openError = "",
 }: {
   departmentId: string;
   chartId?: string;
@@ -21,6 +22,7 @@ export function Organogram({
   people: Settled<DirectoryPerson[]>;
   roles: Settled<RoleAssignment[]>;
   error: string;
+  openError?: string;
 }) {
   return (
     <div className="role-lower-grid">
@@ -33,7 +35,7 @@ export function Organogram({
         people={people}
         roles={roles}
       />
-      <OpenProfileCard />
+      <OpenProfileCard openError={openError} />
     </div>
   );
 }

@@ -55,6 +55,7 @@ export default async function RoleProfilesPage({
         people={people}
         roles={roles}
         error=""
+        openError={params.error ?? ""}
       />
     </RoleProfileFrame>
   );

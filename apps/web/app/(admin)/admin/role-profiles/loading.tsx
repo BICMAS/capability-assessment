@@ -1,3 +1,7 @@
-export default function LoadingRoleProfiles() {
-  return <p role="status">Loading the role skills workflow.</p>;
+export default function RoleProfilesLoading() {
+  return (
+    <div className="role-profile" aria-busy="true" aria-live="polite">
+      <p className="empty-state">Loading role skills profiles…</p>
+    </div>
+  );
 }

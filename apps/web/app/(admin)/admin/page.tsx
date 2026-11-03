@@ -8,22 +8,44 @@ import { FrameworkEditor } from "@/features/frameworks/framework-editor";
 import { HomeDashboard, type HomeMetric } from "@/features/home/dashboard";
 import { listAuditRecords, type AuditRecord } from "@/lib/audit";
 import { listFrameworkVersions, type FrameworkVersion } from "@/lib/capability-framework";
-import { fetchSession } from "@/lib/gateway";
+import { fetchSession, type Session } from "@/lib/gateway";
 import {
   listAssessmentSessions,
   readAssignment,
   readPlan,
   type AssessmentSession,
+  type Assignment,
   type AssignmentResult,
+  type Plan,
 } from "@/lib/generated/assessment-plan/plans";
-import { listDepartments, listPeople, listRoleAssignments } from "@/lib/org-directory";
+import { listDepartments, listPeople, listRoleAssignments, type Department, type DirectoryPerson, type RoleAssignment } from "@/lib/org-directory";
 import { listApprovalQueue } from "@/lib/role-profile";
-import { settle } from "@/lib/safe";
+import { settle, type Settled } from "@/lib/safe";
 import { SESSION_COOKIE } from "@/lib/session";
 
-import { homeFocus } from "./home-focus";
+import { homeFocus, type HomeFocus } from "./home-focus";
 
 export const dynamic = "force-dynamic";
+
+type HomeAssessment = {
+  assignment: Assignment | null;
+  plan: Plan | null;
+  error: string;
+};
+
+type HomeData = {
+  departments: Settled<Department[]>;
+  roleAssignments: Settled<RoleAssignment[]>;
+  people: Settled<DirectoryPerson[]>;
+  versions: Settled<FrameworkVersion[]>;
+  records: Settled<AuditRecord[]>;
+  session: Settled<Session | null>;
+  awaiting: Settled<number>;
+  submitted: Settled<number>;
+  reviewed: Settled<number>;
+  sessions: Settled<AssessmentSession[]>;
+  assessment: HomeAssessment;
+};
 
 export default async function AdminPage({
   searchParams,
@@ -51,25 +73,11 @@ export default async function AdminPage({
   }
   const params = await searchParams;
   const focus = homeFocus(params);
+  const data = await loadHomeData(token, focus, params.assignment ?? "", params.plan ?? "");
 
-  const [departments, roleAssignments, people, versions, records, session, awaiting, submitted, reviewed, sessions] =
-    await Promise.all([
-      settle(listDepartments(token), "Departments"),
-      settle(listRoleAssignments(token), "Role assignments"),
-      settle(listPeople(token), "People"),
-      settle(listFrameworkVersions(token), "Frameworks"),
-      settle(listAuditRecords(token), "Audit record"),
-      settle(fetchSession(token), "Session"),
-      settle(listApprovalQueue(token, "awaiting").then((items) => items.length), "Approvals awaiting review"),
-      settle(listApprovalQueue(token, "submitted").then((items) => items.length), "Submitted approvals"),
-      settle(listApprovalQueue(token, "reviewed").then((items) => items.length), "Reviewed approvals"),
-      settle(listAssessmentSessions(token).then((items) => items.filter((item) => item.status !== "submitted")), "Plans"),
-    ]);
-
-  const assessment = await loadAssessment(token, params.assignment ?? "", params.plan ?? "");
-  const peopleList = people.ok ? people.value : [];
-  const versionList = versions.ok ? versions.value : [];
-  const roleList = roleAssignments.ok ? roleAssignments.value : [];
+  const peopleList = data.people.ok ? data.people.value : [];
+  const versionList = data.versions.ok ? data.versions.value : [];
+  const roleList = data.roleAssignments.ok ? data.roleAssignments.value : [];
   const titles = new Map<string, string[]>();
   for (const roleAssignment of roleList) {
     const current = titles.get(roleAssignment.personId) ?? [];
@@ -78,21 +86,21 @@ export default async function AdminPage({
   }
   const published = versionList.filter((version) => version.status === "published");
   const assignmentResults = decodeResults(params.results);
-  const selectedVersion = versionList.find((version) => version.id === assessment.assignment?.frameworkVersionId) ?? null;
-  const selectedRole = selectedVersion?.roles.find((role) => role.id === assessment.assignment?.roleId);
-  const personName = peopleList.find((person) => person.id === assessment.assignment?.personId)?.name ?? "Person";
+  const selectedVersion = versionList.find((version) => version.id === data.assessment.assignment?.frameworkVersionId) ?? null;
+  const selectedRole = selectedVersion?.roles.find((role) => role.id === data.assessment.assignment?.roleId);
+  const personName = peopleList.find((person) => person.id === data.assessment.assignment?.personId)?.name ?? "Person";
   const approverName =
-    peopleList.find((person) => person.id === assessment.plan?.approvedByPersonId)?.name ??
-    assessment.plan?.approvedByPersonId ??
+    peopleList.find((person) => person.id === data.assessment.plan?.approvedByPersonId)?.name ??
+    data.assessment.plan?.approvedByPersonId ??
     "";
   const saveError =
     params.save === "frozen" && params.framework && params.version
       ? `${params.framework} version ${params.version} cannot be changed.`
       : "";
-  const recordList = records.ok ? [...records.value].sort(newestFirst) : [];
+  const recordList = data.records.ok ? [...data.records.value].sort(newestFirst) : [];
   const shownRecords = params.record === "all" ? recordList : recordList.slice(0, 5);
   const actorNames = new Map(peopleList.map((person) => [person.id, person.name]));
-  const userName = session.ok && session.value ? session.value.name : "there";
+  const userName = data.session.ok && data.session.value ? data.session.value.name : "there";
 
   return (
     <div className="studio-page">
@@ -100,21 +108,21 @@ export default async function AdminPage({
         <HomeDashboard
           userName={userName}
           metrics={buildMetrics({
-            versions,
+            versions: data.versions,
             versionCount: versionList.length,
             publishedCount: published.length,
-            sessions,
+            sessions: data.sessions,
             plansHref: plansHref(params.assignment, params.plan),
-            assignmentSelected: Boolean(assessment.assignment),
+            assignmentSelected: Boolean(data.assessment.assignment),
             personName,
-            departments,
-            roleAssignments,
+            departments: data.departments,
+            roleAssignments: data.roleAssignments,
           })}
-          records={records.ok ? { ok: true, value: shownRecords } : records}
+          records={data.records.ok ? { ok: true, value: shownRecords } : data.records}
           actorNames={actorNames}
           showAllRecords={params.record === "all"}
           totalRecords={recordList.length}
-          approvals={{ awaiting, submitted, reviewed }}
+          approvals={{ awaiting: data.awaiting, submitted: data.submitted, reviewed: data.reviewed }}
         />
       ) : (
         <p className="home-back">
@@ -125,9 +133,9 @@ export default async function AdminPage({
         <section className="studio-region" id="frameworks">
           <header className="studio-step">
             <h2>Frameworks</h2>
-            <p className="studio-step-status">{versions.ok ? frameworkStatus(versionList) : versions.error}</p>
+            <p className="studio-step-status">{data.versions.ok ? frameworkStatus(versionList) : data.versions.error}</p>
           </header>
-          {versions.ok ? (
+          {data.versions.ok ? (
             <FrameworkEditor
               versions={versionList}
               reviewBlocked={params.review === "blocked"}
@@ -140,7 +148,7 @@ export default async function AdminPage({
               frozenVersionId={params.save === "frozen" ? (params.versionId ?? "") : ""}
             />
           ) : (
-            <StatusMessage tone="error">{versions.error}</StatusMessage>
+            <StatusMessage tone="error">{data.versions.error}</StatusMessage>
           )}
         </section>
       ) : null}
@@ -149,10 +157,10 @@ export default async function AdminPage({
           <header className="studio-step">
             <h2>Assignments</h2>
             <p className={assignmentResults.some((result) => result.outcome === "failed") ? "studio-step-status is-error" : "studio-step-status"}>
-              {!people.ok ? people.error : !versions.ok ? versions.error : assignmentStatus(assignmentResults)}
+              {!data.people.ok ? data.people.error : !data.versions.ok ? data.versions.error : assignmentStatus(assignmentResults)}
             </p>
           </header>
-          {people.ok && versions.ok ? (
+          {data.people.ok && data.versions.ok ? (
             <AssignmentStep
               people={peopleList.map((person) => ({
                 id: person.id,
@@ -173,7 +181,7 @@ export default async function AdminPage({
             />
           ) : (
             <StatusMessage tone="error">
-              {!people.ok ? people.error : !versions.ok ? versions.error : "Assignments are unavailable."}
+              {!data.people.ok ? data.people.error : !data.versions.ok ? data.versions.error : "Assignments are unavailable."}
             </StatusMessage>
           )}
         </section>
@@ -182,32 +190,32 @@ export default async function AdminPage({
         <section className="studio-region" id="plans">
           <header className="studio-step">
             <h2>Plans</h2>
-            <p className={assessment.error ? "studio-step-status is-error" : "studio-step-status"}>
-              {planStatus(assessment, personName, selectedRole?.name ?? "", approverName)}
+            <p className={data.assessment.error ? "studio-step-status is-error" : "studio-step-status"}>
+              {planStatus(data.assessment, personName, selectedRole?.name ?? "", approverName)}
             </p>
           </header>
-          {assessment.assignment ? (
+          {data.assessment.assignment ? (
             <PlanStep
-              assignment={assessment.assignment}
-              plan={assessment.plan}
-              session={sessionForPlan(await personSessions(token, assessment.assignment.personId), assessment.plan?.id ?? "")}
+              assignment={data.assessment.assignment}
+              plan={data.assessment.plan}
+              session={sessionForPlan(await personSessions(token, data.assessment.assignment.personId), data.assessment.plan?.id ?? "")}
               version={selectedVersion}
               personName={personName}
               roleName={selectedRole?.name ?? "Role"}
               approverName={approverName}
-              error={params.planError ?? assessment.error}
+              error={params.planError ?? data.assessment.error}
             />
           ) : (
-            <EmptyState>{assessment.error || "Confirm an assignment to generate a plan."}</EmptyState>
+            <EmptyState>{data.assessment.error || "Confirm an assignment to generate a plan."}</EmptyState>
           )}
         </section>
       ) : null}
       {focus === "organisation" ? (
         <section className="studio-region">
           <h2>Organisation</h2>
-          {!departments.ok || !roleAssignments.ok ? (
+          {!data.departments.ok || !data.roleAssignments.ok ? (
             <StatusMessage tone="error">
-              {[!departments.ok ? departments.error : null, !roleAssignments.ok ? roleAssignments.error : null]
+              {[!data.departments.ok ? data.departments.error : null, !data.roleAssignments.ok ? data.roleAssignments.error : null]
                 .filter(Boolean)
                 .join(" ")}
             </StatusMessage>
@@ -216,8 +224,8 @@ export default async function AdminPage({
               <div>
                 <h3>Departments</h3>
                 <ul>
-                  {departments.value.length === 0 ? <li className="record-empty">None</li> : null}
-                  {departments.value.map((department) => (
+                  {data.departments.value.length === 0 ? <li className="record-empty">None</li> : null}
+                  {data.departments.value.map((department) => (
                     <li key={department.id}>{department.name}</li>
                   ))}
                 </ul>
@@ -225,8 +233,8 @@ export default async function AdminPage({
               <div>
                 <h3>Role assignments</h3>
                 <ul>
-                  {roleAssignments.value.length === 0 ? <li className="record-empty">None</li> : null}
-                  {roleAssignments.value.map((assignment) => (
+                  {data.roleAssignments.value.length === 0 ? <li className="record-empty">None</li> : null}
+                  {data.roleAssignments.value.map((assignment) => (
                     <li key={assignment.id}>
                       {assignment.personName} — {assignment.title}
                     </li>
@@ -241,16 +249,129 @@ export default async function AdminPage({
   );
 }
 
+async function loadHomeData(token: string, focus: HomeFocus, assignmentId: string, planId: string): Promise<HomeData> {
+  const unavailable = <T,>(label: string): Settled<T> => ({ ok: false, error: `${label} is unavailable right now.` });
+  const emptyList = <T,>(): Settled<T[]> => ({ ok: true, value: [] });
+  const zero = (label: string): Settled<number> => ({ ok: false, error: `${label} is unavailable right now.` });
+  const idleAssessment: HomeAssessment = { assignment: null, plan: null, error: "" };
+
+  if (focus === "overview") {
+    const [departments, roleAssignments, people, versions, records, session, awaiting, submitted, reviewed, sessions] =
+      await Promise.all([
+        settle(listDepartments(token), "Departments"),
+        settle(listRoleAssignments(token), "Role assignments"),
+        settle(listPeople(token), "People"),
+        settle(listFrameworkVersions(token), "Frameworks"),
+        settle(listAuditRecords(token), "Audit record"),
+        settle(fetchSession(token), "Session"),
+        settle(listApprovalQueue(token, "awaiting").then((items) => items.length), "Approvals awaiting review"),
+        settle(listApprovalQueue(token, "submitted").then((items) => items.length), "Submitted approvals"),
+        settle(listApprovalQueue(token, "reviewed").then((items) => items.length), "Reviewed approvals"),
+        settle(listAssessmentSessions(token).then((items) => items.filter((item) => item.status !== "submitted")), "Plans"),
+      ]);
+    return {
+      departments,
+      roleAssignments,
+      people,
+      versions,
+      records,
+      session,
+      awaiting,
+      submitted,
+      reviewed,
+      sessions,
+      assessment: idleAssessment,
+    };
+  }
+
+  if (focus === "frameworks") {
+    const versions = await settle(listFrameworkVersions(token), "Frameworks");
+    return {
+      departments: emptyList<Department>(),
+      roleAssignments: emptyList<RoleAssignment>(),
+      people: emptyList<DirectoryPerson>(),
+      versions,
+      records: emptyList<AuditRecord>(),
+      session: unavailable<Session | null>("Session"),
+      awaiting: zero("Approvals awaiting review"),
+      submitted: zero("Submitted approvals"),
+      reviewed: zero("Reviewed approvals"),
+      sessions: emptyList<AssessmentSession>(),
+      assessment: idleAssessment,
+    };
+  }
+
+  if (focus === "assignments") {
+    const [people, versions, roleAssignments] = await Promise.all([
+      settle(listPeople(token), "People"),
+      settle(listFrameworkVersions(token), "Frameworks"),
+      settle(listRoleAssignments(token), "Role assignments"),
+    ]);
+    return {
+      departments: emptyList<Department>(),
+      roleAssignments,
+      people,
+      versions,
+      records: emptyList<AuditRecord>(),
+      session: unavailable<Session | null>("Session"),
+      awaiting: zero("Approvals awaiting review"),
+      submitted: zero("Submitted approvals"),
+      reviewed: zero("Reviewed approvals"),
+      sessions: emptyList<AssessmentSession>(),
+      assessment: idleAssessment,
+    };
+  }
+
+  if (focus === "plans") {
+    const [people, versions, assessment] = await Promise.all([
+      settle(listPeople(token), "People"),
+      settle(listFrameworkVersions(token), "Frameworks"),
+      loadAssessment(token, assignmentId, planId),
+    ]);
+    return {
+      departments: emptyList<Department>(),
+      roleAssignments: emptyList<RoleAssignment>(),
+      people,
+      versions,
+      records: emptyList<AuditRecord>(),
+      session: unavailable<Session | null>("Session"),
+      awaiting: zero("Approvals awaiting review"),
+      submitted: zero("Submitted approvals"),
+      reviewed: zero("Reviewed approvals"),
+      sessions: emptyList<AssessmentSession>(),
+      assessment,
+    };
+  }
+
+  const [departments, roleAssignments] = await Promise.all([
+    settle(listDepartments(token), "Departments"),
+    settle(listRoleAssignments(token), "Role assignments"),
+  ]);
+  return {
+    departments,
+    roleAssignments,
+    people: emptyList<DirectoryPerson>(),
+    versions: emptyList<FrameworkVersion>(),
+    records: emptyList<AuditRecord>(),
+    session: unavailable<Session | null>("Session"),
+    awaiting: zero("Approvals awaiting review"),
+    submitted: zero("Submitted approvals"),
+    reviewed: zero("Reviewed approvals"),
+    sessions: emptyList<AssessmentSession>(),
+    assessment: idleAssessment,
+  };
+}
+
 function buildMetrics(input: {
-  versions: { ok: true; value: unknown } | { ok: false; error: string };
+  versions: Settled<FrameworkVersion[]>;
   versionCount: number;
   publishedCount: number;
-  sessions: { ok: true; value: unknown[] } | { ok: false; error: string };
+  sessions: Settled<AssessmentSession[]>;
   plansHref: string;
   assignmentSelected: boolean;
   personName: string;
-  departments: { ok: true; value: unknown[] } | { ok: false; error: string };
-  roleAssignments: { ok: true; value: unknown[] } | { ok: false; error: string };
+  departments: Settled<Department[]>;
+  roleAssignments: Settled<RoleAssignment[]>;
 }): HomeMetric[] {
   return [
     {

@@ -109,7 +109,7 @@ function pageTitle(area: Area, pathname: string): { kicker: string; title: strin
     return { kicker: "Team", title: "My team" };
   }
   if (pathname.startsWith("/admin/role-profiles/review")) {
-    return { kicker: "Admin", title: "Review" };
+    return { kicker: "Admin", title: "Review & Approvals" };
   }
   if (pathname.startsWith("/admin/role-profiles")) {
     return { kicker: "Admin", title: "Role skills profiles" };

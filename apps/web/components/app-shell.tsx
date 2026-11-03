@@ -83,16 +83,63 @@ function ShellFrame({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState(false);
   const role = accountLabel(session.roles);
   const crumbs = useTrail(pathname);
+  const navId = useId();
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+    const media = window.matchMedia("(max-width: 1024px)");
+    const sync = () => {
+      setDrawerMode(media.matches);
+      if (!media.matches) {
+        setMobileOpen(false);
+      }
+    };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!drawerMode || !mobileOpen) {
+      document.body.style.removeProperty("overflow");
+      return;
+    }
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.removeProperty("overflow");
+    };
+  }, [drawerMode, mobileOpen]);
+
   return (
     <div className="app-shell" data-collapsed={collapsed ? "true" : "false"} data-nav={mobileOpen ? "open" : "closed"}>
-      <aside className="app-sidebar" aria-label="Primary">
+      <aside
+        id={navId}
+        className="app-sidebar"
+        aria-label="Primary"
+        {...(drawerMode && !mobileOpen ? { inert: true, "aria-hidden": true as const } : {})}
+      >
         <div className="app-brand">
           <span className="app-brand-compact" aria-hidden="true">
             B
@@ -118,7 +165,13 @@ function ShellFrame({
       ) : null}
       <div className="app-main">
         <header className="app-topbar">
-          <button type="button" className="app-nav-toggle" aria-expanded={mobileOpen} onClick={() => setMobileOpen((value) => !value)}>
+          <button
+            type="button"
+            className="app-nav-toggle"
+            aria-expanded={mobileOpen}
+            aria-controls={navId}
+            onClick={() => setMobileOpen((value) => !value)}
+          >
             <Menu size={20} aria-hidden="true" />
             <span className="app-clip">{mobileOpen ? "Close navigation" : "Open navigation"}</span>
           </button>
@@ -134,6 +187,7 @@ function ShellFrame({
           <header className="app-page-header">
             <p className="kicker">Admin</p>
             <h1>{pageTitle(pathname)}</h1>
+            {pageDescription(pathname) ? <p className="app-page-description">{pageDescription(pathname)}</p> : null}
           </header>
           {children}
         </div>
@@ -405,12 +459,19 @@ function currentLink(pathname: string, href: string): boolean {
 
 function pageTitle(pathname: string): string {
   if (pathname.startsWith("/admin/role-profiles/review")) {
-    return "Review";
+    return "Review & Approvals";
   }
   if (pathname.startsWith("/admin/role-profiles")) {
     return "Role skills profiles";
   }
   return "Home";
+}
+
+function pageDescription(pathname: string): string {
+  if (pathname.startsWith("/admin/role-profiles/review")) {
+    return "Manage submitted role skills profiles and configure approval workflows.";
+  }
+  return "";
 }
 
 function accountLabel(roles: readonly string[]): string {

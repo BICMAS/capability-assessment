@@ -1580,7 +1580,7 @@ components:
     RoleProfileApprovalQueueItem:
       type: object
       additionalProperties: false
-      required: [profileId, roleName, department, versionId, versionNumber, revision, status, workflowStage, stageLabel, submittedAt, assigneePersonId, outstanding]
+      required: [profileId, roleName, department, versionId, versionNumber, revision, status, workflowStage, stageLabel, submittedAt, submittedByPersonId, assigneePersonId, outstanding]
       properties:
         profileId:
           type: string
@@ -1604,6 +1604,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        submittedByPersonId:
+          type: string
+          description: Person who submitted the version for review. Empty when not yet submitted.
         assigneePersonId:
           type: string
         outstanding:

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -11,15 +11,18 @@ vi.mock("@/features/role-profiles/actions", () => ({
   openRoleProfileForm: vi.fn(),
 }));
 
+import { openRoleProfileForm } from "@/features/role-profiles/actions";
 import { RoleProfileFrame } from "@/features/role-profiles/frame";
 import { Organogram } from "@/features/role-profiles/organogram";
 
 afterEach(() => {
   cleanup();
+  vi.mocked(openRoleProfileForm).mockReset();
 });
 
 describe("role profile directory", () => {
   it("groups people by department and keeps the profile actions", async () => {
+    const user = userEvent.setup();
     render(
       <Organogram
         departmentId=""
@@ -49,18 +52,52 @@ describe("role profile directory", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Organisation directory" })).toBeTruthy();
+    expect(screen.getByText(/Departments and role titles come from the organisation directory/i)).toBeTruthy();
+    expect(screen.getByText(/organogram records reporting relationships/i)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Open a profile" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Sales" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "No department" })).toBeTruthy();
     expect(screen.getByText("Area Sales Manager")).toBeTruthy();
     expect(screen.getByText("No role title")).toBeTruthy();
+    expect(screen.getByText("Has role title")).toBeTruthy();
+    expect(screen.getByText("Needs role title")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create profile" }).getAttribute("href")).toBe(
+      "/admin/role-profiles/new?title=Area%20Sales%20Manager",
+    );
+    expect(screen.getByRole("link", { name: "Create without title" }).getAttribute("href")).toBe("/admin/role-profiles/new");
     expect(screen.getByRole("link", { name: "Create a role profile" }).getAttribute("href")).toBe("/admin/role-profiles/new");
     expect(screen.getByRole("link", { name: "Review inbox" }).getAttribute("href")).toBe("/admin/role-profiles/review");
+    expect(screen.getByLabelText("Profile id")).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: "Role profile workflow" })).toBeNull();
 
-    await userEvent.type(screen.getByRole("searchbox", { name: "Search the directory" }), "eli");
+    await user.type(screen.getByRole("searchbox", { name: "Search the directory" }), "eli");
     expect(screen.getByText("Eli Employee")).toBeTruthy();
     expect(screen.queryByText("Ada Admin")).toBeNull();
+
+    await user.clear(screen.getByRole("searchbox", { name: "Search the directory" }));
+    await user.click(screen.getByRole("button", { name: "Without role title" }));
+    expect(screen.getByText("Ada Admin")).toBeTruthy();
+    expect(screen.queryByText("Eli Employee")).toBeNull();
+  });
+
+  it("validates the profile id before opening", async () => {
+    const user = userEvent.setup();
+    render(
+      <Organogram
+        departmentId=""
+        departments={{ ok: true, value: [] }}
+        people={{ ok: true, value: [] }}
+        roles={{ ok: true, value: [] }}
+        error=""
+        openError=""
+      />,
+    );
+
+    const panel = screen.getByRole("heading", { name: "Open a profile" }).closest("aside");
+    expect(panel).toBeTruthy();
+    await user.click(within(panel as HTMLElement).getByRole("button", { name: "Open profile" }));
+    expect(within(panel as HTMLElement).getByText("Enter a profile id.")).toBeTruthy();
+    expect(openRoleProfileForm).not.toHaveBeenCalled();
   });
 
   it("shows the seven-stage workflow before a profile exists", () => {

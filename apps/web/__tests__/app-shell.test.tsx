@@ -58,7 +58,8 @@ describe("application shell", () => {
     const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(within(nav).getByRole("link", { name: "Review & Approvals" }).getAttribute("aria-current")).toBe("page");
     expect(within(nav).getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Review" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Review & Approvals" })).toBeTruthy();
+    expect(screen.getByText("Manage submitted role skills profiles and configure approval workflows.")).toBeTruthy();
 
     await userEvent.click(screen.getAllByRole("button", { name: "Account menu for Ada Admin" })[0]);
     const signOut = screen.getByRole("button", { name: "Sign out" });

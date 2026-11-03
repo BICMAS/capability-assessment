@@ -168,18 +168,19 @@ type ApprovalRecord struct {
 }
 
 type ApprovalQueueItem struct {
-	ProfileID        string     `json:"profileId"`
-	RoleName         string     `json:"roleName"`
-	Department       string     `json:"department"`
-	VersionID        string     `json:"versionId"`
-	VersionNumber    int        `json:"versionNumber"`
-	Revision         int        `json:"revision"`
-	Status           string     `json:"status"`
-	WorkflowStage    string     `json:"workflowStage"`
-	StageLabel       string     `json:"stageLabel"`
-	SubmittedAt      *time.Time `json:"submittedAt"`
-	AssigneePersonID string     `json:"assigneePersonId"`
-	Outstanding      string     `json:"outstanding"`
+	ProfileID            string     `json:"profileId"`
+	RoleName             string     `json:"roleName"`
+	Department           string     `json:"department"`
+	VersionID            string     `json:"versionId"`
+	VersionNumber        int        `json:"versionNumber"`
+	Revision             int        `json:"revision"`
+	Status               string     `json:"status"`
+	WorkflowStage        string     `json:"workflowStage"`
+	StageLabel           string     `json:"stageLabel"`
+	SubmittedAt          *time.Time `json:"submittedAt"`
+	SubmittedByPersonID  string     `json:"submittedByPersonId"`
+	AssigneePersonID     string     `json:"assigneePersonId"`
+	Outstanding          string     `json:"outstanding"`
 }
 
 type SkillAssignment struct {

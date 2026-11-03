@@ -291,18 +291,19 @@ func (m *Memory) ListApprovalQueue(_ context.Context, organisationID, personID, 
 			continue
 		}
 		items = append(items, ApprovalQueueItem{
-			ProfileID:        version.ProfileID,
-			RoleName:         profile.RoleName,
-			Department:       version.BusinessUnit,
-			VersionID:        version.ID,
-			VersionNumber:    version.VersionNumber,
-			Revision:         version.Revision,
-			Status:           version.Status,
-			WorkflowStage:    version.WorkflowStage,
-			StageLabel:       record.StageLabel,
-			SubmittedAt:      copyTime(version.SubmittedAt),
-			AssigneePersonID: record.AssigneePersonID,
-			Outstanding:      record.Outstanding,
+			ProfileID:           version.ProfileID,
+			RoleName:            profile.RoleName,
+			Department:          version.BusinessUnit,
+			VersionID:           version.ID,
+			VersionNumber:       version.VersionNumber,
+			Revision:            version.Revision,
+			Status:              version.Status,
+			WorkflowStage:       version.WorkflowStage,
+			StageLabel:          record.StageLabel,
+			SubmittedAt:         copyTime(version.SubmittedAt),
+			SubmittedByPersonID: version.SubmittedByPersonID,
+			AssigneePersonID:    record.AssigneePersonID,
+			Outstanding:         record.Outstanding,
 		})
 	}
 	return items, nil
@@ -709,7 +710,8 @@ func (s SQLStore) ListApprovalQueue(ctx context.Context, organisationID, personI
 			ProfileID: loaded.ProfileID, RoleName: profile.RoleName, Department: loaded.BusinessUnit,
 			VersionID: loaded.ID, VersionNumber: loaded.VersionNumber, Revision: loaded.Revision,
 			Status: loaded.Status, WorkflowStage: loaded.WorkflowStage, StageLabel: record.StageLabel,
-			SubmittedAt: copyTime(loaded.SubmittedAt), AssigneePersonID: record.AssigneePersonID, Outstanding: record.Outstanding,
+			SubmittedAt: copyTime(loaded.SubmittedAt), SubmittedByPersonID: loaded.SubmittedByPersonID,
+			AssigneePersonID: record.AssigneePersonID, Outstanding: record.Outstanding,
 		})
 	}
 	return items, nil
