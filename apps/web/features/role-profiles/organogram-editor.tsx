@@ -36,51 +36,69 @@ export function OrganogramEditor({
 
   return (
     <div className="chart-editor">
-      <div className="chart-editor-bar">
-        <p>
-          <strong>{chart.name}</strong> <span className="status-pill">{chart.status === "published" ? "Published" : "Draft"}</span>
-        </p>
-        {chart.status === "draft" ? (
-          <button
-            type="button"
-            className="primary"
-            onClick={() => {
-              void publishOrganogramAction(chart.id).then((result) => refresh(result.ok ? "" : result.message));
-            }}
-          >
-            Publish chart
-          </button>
+      <section className="role-editor-block" aria-labelledby="builder-status-heading">
+        <div className="chart-editor-bar">
+          <div>
+            <h4 id="builder-status-heading">Published chart status</h4>
+            <p>
+              <strong>{chart.name}</strong>{" "}
+              <span className={chart.status === "published" ? "status-pill" : "role-status-draft"}>
+                {chart.status === "published" ? "Published" : "Draft"}
+              </span>
+            </p>
+          </div>
+          {chart.status === "draft" ? (
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                void publishOrganogramAction(chart.id).then((result) => refresh(result.ok ? "" : result.message));
+              }}
+            >
+              Publish chart
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="role-editor-block" aria-labelledby="position-manage-heading">
+        <h4 id="position-manage-heading">Position management</h4>
+        <p className="portal-note">Add a position with an optional manager, department, and person.</p>
+        {message ? (
+          <p role="alert" className="status-message is-error">
+            {message}
+          </p>
         ) : null}
-      </div>
-      <label>
-        Search positions
-        <input value={query} onChange={(event) => setQuery(event.target.value)} />
-      </label>
-      {message ? (
-        <p role="alert" className="status-message is-error">
-          {message}
-        </p>
-      ) : null}
-      <AddPosition chartId={chart.id} positions={positions} departments={departments} people={people} onDone={refresh} />
-      {positions.length === 0 ? <p className="empty-state">No positions are recorded on this chart.</p> : null}
-      {positions.length > 0 && roots.length === 0 ? <p className="empty-state">No positions match this search.</p> : null}
-      <ul className="chart-tree">
-        {roots.map((position) => (
-          <ChartNode
-            key={position.id}
-            chartId={chart.id}
-            position={position}
-            positions={positions}
-            departments={departments}
-            people={people}
-            query={query}
-            collapsed={collapsed}
-            onToggle={(id) => setCollapsed((current) => ({ ...current, [id]: !current[id] }))}
-            onDelete={setPendingDelete}
-            onDone={refresh}
-          />
-        ))}
-      </ul>
+        <AddPosition chartId={chart.id} positions={positions} departments={departments} people={people} onDone={refresh} />
+      </section>
+
+      <section className="role-editor-block" aria-labelledby="online-builder-heading">
+        <h4 id="online-builder-heading">Online organogram builder</h4>
+        <label>
+          Search positions
+          <input value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        {positions.length === 0 ? <p className="empty-state">No positions are recorded on this chart.</p> : null}
+        {positions.length > 0 && roots.length === 0 ? <p className="empty-state">No positions match this search.</p> : null}
+        <ul className="chart-tree">
+          {roots.map((position) => (
+            <ChartNode
+              key={position.id}
+              chartId={chart.id}
+              position={position}
+              positions={positions}
+              departments={departments}
+              people={people}
+              query={query}
+              collapsed={collapsed}
+              onToggle={(id) => setCollapsed((current) => ({ ...current, [id]: !current[id] }))}
+              onDelete={setPendingDelete}
+              onDone={refresh}
+            />
+          ))}
+        </ul>
+      </section>
+
       {pendingDelete ? (
         <div className="chart-confirm" role="dialog" aria-labelledby="remove-position-title">
           <h3 id="remove-position-title">Remove {pendingDelete.title}?</h3>
@@ -191,7 +209,11 @@ function ChartNode({
         ) : null}
         <strong>{position.title}</strong>
         <span>{department ? department.name : "No department"}</span>
-        <Link href={`/admin/role-profiles/new?title=${encodeURIComponent(position.title)}&position=${encodeURIComponent(position.id)}&organogram=${encodeURIComponent(chartId)}`}>Use for role profile</Link>
+        <Link
+          href={`/admin/role-profiles/new?title=${encodeURIComponent(position.title)}&position=${encodeURIComponent(position.id)}&organogram=${encodeURIComponent(chartId)}`}
+        >
+          Use for role profile
+        </Link>
         <button type="button" onClick={() => setEditing((current) => !current)}>
           Edit
         </button>

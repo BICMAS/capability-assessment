@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SetBreadcrumb } from "@/components/shell-breadcrumb";
 import { StatusMessage } from "@/components/ui/status-message";
 import type { RoleProfile } from "@/lib/role-profile";
 import { listOrganograms } from "@/lib/org-directory";
@@ -25,20 +25,19 @@ export function RoleProfileFrame({
   children: ReactNode;
 }) {
   const stage = workflowStages.find((item) => item.id === current);
+  const crumbs = [
+    { href: "/admin", label: "Home" },
+    { href: "/admin/role-profiles", label: "Role skills profiles" },
+    ...(profile ? [{ label: profile.roleName }] : []),
+    ...(stage ? [{ label: stage.title }] : []),
+  ];
+
   return (
     <div className="role-profile">
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <ol>
-          <li>
-            <Link href="/admin">Home</Link>
-          </li>
-          <li>
-            <Link href="/admin/role-profiles">Role skills profiles</Link>
-          </li>
-          {profile ? <li>{profile.roleName}</li> : null}
-          <li aria-current="page">{stage?.title}</li>
-        </ol>
-      </nav>
+      <SetBreadcrumb items={crumbs} />
+      {!profile ? (
+        <p className="role-page-lead">Create and manage role skills profiles for your organisation.</p>
+      ) : null}
       <WorkflowStepper profile={profile} current={current} evidence={evidence} />
       <StatusMessage tone="error">{error}</StatusMessage>
       <StatusMessage tone="success">{notice}</StatusMessage>

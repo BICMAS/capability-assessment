@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-dom", async () => {
@@ -18,7 +19,7 @@ afterEach(() => {
 });
 
 describe("role profile directory", () => {
-  it("groups people by department and keeps the profile actions", () => {
+  it("groups people by department and keeps the profile actions", async () => {
     render(
       <Organogram
         departmentId=""
@@ -47,6 +48,8 @@ describe("role profile directory", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "Organisation directory" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Open a profile" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Sales" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "No department" })).toBeTruthy();
     expect(screen.getByText("Area Sales Manager")).toBeTruthy();
@@ -54,6 +57,10 @@ describe("role profile directory", () => {
     expect(screen.getByRole("link", { name: "Create a role profile" }).getAttribute("href")).toBe("/admin/role-profiles/new");
     expect(screen.getByRole("link", { name: "Review inbox" }).getAttribute("href")).toBe("/admin/role-profiles/review");
     expect(screen.queryByRole("navigation", { name: "Role profile workflow" })).toBeNull();
+
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search the directory" }), "eli");
+    expect(screen.getByText("Eli Employee")).toBeTruthy();
+    expect(screen.queryByText("Ada Admin")).toBeNull();
   });
 
   it("shows the seven-stage workflow before a profile exists", () => {
@@ -62,6 +69,7 @@ describe("role profile directory", () => {
         <p>Directory</p>
       </RoleProfileFrame>,
     );
+    expect(screen.getByText("Create and manage role skills profiles for your organisation.")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Role skills workflow" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Upload Organogram/ }).getAttribute("aria-current")).toBe("step");
     expect(screen.getByText("Upload a spreadsheet, build the chart, or import the template.")).toBeTruthy();
@@ -108,6 +116,7 @@ describe("role profile directory", () => {
 
     expect(screen.getByRole("navigation", { name: "Role skills workflow" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Area Sales Manager" })).toBeTruthy();
+    expect(screen.queryByText("Create and manage role skills profiles for your organisation.")).toBeNull();
     expect(screen.getByRole("link", { name: /Provide Role Information/ }).getAttribute("href")).toBe("/admin/role-profiles/profile-1/context");
     expect(screen.getByRole("link", { name: /Review and Customise Skills/ }).getAttribute("aria-current")).toBe("step");
     expect(screen.queryByRole("link", { name: /Use the Insights/ })).toBeNull();

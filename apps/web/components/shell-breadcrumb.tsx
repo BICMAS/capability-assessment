@@ -33,6 +33,6 @@ export function SetBreadcrumb({ items }: { items: Crumb[] }) {
   useEffect(() => {
     setExtra(items);
     return () => setExtra([]);
-  }, [items, key, setExtra]);
+  }, [key, items, setExtra]);
   return null;
 }

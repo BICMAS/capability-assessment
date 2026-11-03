@@ -103,7 +103,7 @@ function ShellFrame({
         <nav className="app-nav" aria-label="Sections">
           <NavGroup title="Workspace" items={workspace} pathname={pathname} />
           <NavGroup title="Skills management" items={skills} pathname={pathname} />
-          <NavGroup title="Future" items={later} pathname={pathname} />
+          <NavGroup title="Coming soon" items={later} pathname={pathname} />
         </nav>
         <div className="app-sidebar-foot">
           <button type="button" className="app-collapse" onClick={() => setCollapsed((value) => !value)} aria-pressed={collapsed}>
@@ -131,7 +131,10 @@ function ShellFrame({
           </div>
         </header>
         <div className="app-content">
-          <h1>{pageTitle(pathname)}</h1>
+          <header className="app-page-header">
+            <p className="kicker">Admin</p>
+            <h1>{pageTitle(pathname)}</h1>
+          </header>
           {children}
         </div>
       </div>
@@ -199,7 +202,7 @@ function PageSearch() {
   const visible = open && query.trim().length > 0;
 
   return (
-    <search className="app-search">
+    <div className="app-search">
       <form
         role="search"
         onSubmit={(event) => {
@@ -245,7 +248,7 @@ function PageSearch() {
           ))}
         </ul>
       ) : null}
-    </search>
+    </div>
   );
 }
 

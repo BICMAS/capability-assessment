@@ -57,7 +57,9 @@
   --icon-md: 20px;
 
   --nav-width: 240px;
-  --main-max: 1120px;
+  --nav-collapsed: 72px;
+  --main-max: 1600px;
+  --topbar-height: 64px;
   --focus-ring: 2px solid var(--color-charcoal);
   --focus-offset: 2px;
 }

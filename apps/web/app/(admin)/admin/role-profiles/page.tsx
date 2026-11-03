@@ -20,6 +20,7 @@ export default async function RoleProfilesPage({
     redirect("/");
   }
   const params = await searchParams;
+  const entry = params.entry === "upload" || params.entry === "template" ? params.entry : "build";
   const [departments, people, roles, charts] = await Promise.all([
     settle(listDepartments(token), "Departments"),
     settle(listPeople(token), "People"),
@@ -44,9 +45,17 @@ export default async function RoleProfilesPage({
         files={files}
         departments={departments.ok ? departments.value : []}
         people={people.ok ? people.value : []}
-        entry={params.entry ?? "build"}
+        entry={entry}
       />
-      <Organogram departmentId={params.department ?? ""} departments={departments} people={people} roles={roles} error="" />
+      <Organogram
+        departmentId={params.department ?? ""}
+        chartId={chart?.id ?? ""}
+        entry={entry}
+        departments={departments}
+        people={people}
+        roles={roles}
+        error=""
+      />
     </RoleProfileFrame>
   );
 }
