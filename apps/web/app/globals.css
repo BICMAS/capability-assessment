@@ -377,12 +377,6 @@ input[type="file"]::file-selector-button {
 
 .main > h1 {
   font-family: var(--type-display);
-  font-size: clamp(2.4rem, 4vw, 3.4rem);
-  font-weight: 500;
-  letter-spacing: -0.035em;
-  line-height: 0.95;
-  margin: 0 0 1.75rem;
-}
   font-size: var(--font-size-display);
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -419,12 +413,6 @@ input[type="file"]::file-selector-button {
 
 .portal-note {
   margin: 0;
-  color: #5c6558;
-}
-
-.portal-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   color: var(--text-muted);
   font-size: var(--font-size-small);
 }
@@ -450,16 +438,16 @@ input[type="file"]::file-selector-button {
 
 .portal-cards a:hover {
   box-shadow: var(--shadow-lg);
+}
+
+.portal-cards strong {
+  font-family: var(--type-display);
+  font-size: 2rem;
+  font-weight: 500;
   letter-spacing: -0.03em;
 }
 
 .status-pill {
-  display: inline-block;
-  width: fit-content;
-  margin: 0 0 1rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  background: #e7f7cf;
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -470,6 +458,12 @@ input[type="file"]::file-selector-button {
   color: var(--color-forest);
   font-size: var(--font-size-caption);
   font-weight: 600;
+}
+
+.home-back {
+  margin: 0;
+}
+
 .home-back a {
   color: var(--accent);
   font-weight: 650;
@@ -477,9 +471,9 @@ input[type="file"]::file-selector-button {
 
 .team-summary {
   display: block;
-  margin-top: 0.45rem;
-  color: #5c6558;
-  font-size: 0.92rem;
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
 }
 
 .directory {
@@ -2051,6 +2045,8 @@ input[type="file"]::file-selector-button {
 
 .provenance-ai {
   border-color: var(--color-navy);
+}
+
 .kind-note,
 .generation-meta {
   display: block;
@@ -2103,12 +2099,6 @@ input[type="file"]::file-selector-button {
 .role-profile .skill-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: flex-end;
-}
-
-.role-profile .skill-tabs button[aria-selected="true"] {
-  background: #1d4f91;
   gap: var(--space-2);
   align-items: center;
 }
@@ -2119,8 +2109,8 @@ input[type="file"]::file-selector-button {
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-muted);
+}
 
-.role-profile .skills-table {
 .role-profile .skill-tabs button[aria-selected="true"],
 .role-profile .skill-filters a[aria-current="page"] {
   background: var(--color-sage);
@@ -2150,12 +2140,6 @@ input[type="file"]::file-selector-button {
 }
 
 .role-profile .approval-queue li {
-  margin: 0.75rem 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d5deea;
-  background: #fff;
-}
-
   margin: var(--space-3) 0;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
