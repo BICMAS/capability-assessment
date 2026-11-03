@@ -18,7 +18,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     : { ok: false as const, error: "Notifications are unavailable." };
 
   return (
-    <AppShell session={session} notifications={inbox.ok ? inbox.value : []} notificationError={inbox.ok ? "" : inbox.error}>
+    <AppShell
+      area="admin"
+      session={session}
+      notifications={inbox.ok ? inbox.value : []}
+      notificationError={inbox.ok ? "" : inbox.error}
+    >
       {children}
     </AppShell>
   );

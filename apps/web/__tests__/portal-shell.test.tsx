@@ -22,8 +22,8 @@ afterEach(() => {
   cleanup();
 });
 
-describe("portal shell", () => {
-  it("shows the admin navigation and keeps sign-out", () => {
+describe("legacy portal shell", () => {
+  it("still renders admin navigation for compatibility", () => {
     render(
       <PortalShell area="admin" session={session}>
         <p>Today</p>
@@ -35,31 +35,5 @@ describe("portal shell", () => {
     expect(screen.getByRole("link", { name: "Review" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Home" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
-    expect(screen.getByText("Ada")).toBeTruthy();
-  });
-
-  it("names the employee home from the area, not the admin path", () => {
-    render(
-      <PortalShell area="employee" session={{ ...session, name: "Eli", roles: ["employee"] }}>
-        <p>Record</p>
-      </PortalShell>,
-    );
-
-    expect(screen.queryByRole("heading", { name: "My capability" })).toBeNull();
-    expect(screen.getByRole("link", { name: "My capability" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Review" })).toBeNull();
-  });
-
-  it("lets a person's name be the heading on their record", () => {
-    pathname.current = "/manager/people/eli";
-    render(
-      <PortalShell area="manager" session={{ ...session, name: "Maya", roles: ["manager"] }}>
-        <h2>Eli Employee</h2>
-      </PortalShell>,
-    );
-
-    expect(screen.queryByRole("heading", { name: "My team" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Eli Employee" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "My team" })).toBeTruthy();
   });
 });

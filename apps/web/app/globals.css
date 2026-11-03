@@ -3,6 +3,7 @@
 @import "../styles/shell.css";
 @import "../styles/home.css";
 @import "../styles/role-workspace.css";
+@import "../styles/employee.css";
 
 :root {
   color: var(--ink);

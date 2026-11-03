@@ -6,6 +6,7 @@ import {
   Building2,
   CheckCheck,
   CircleHelp,
+  ClipboardCheck,
   GraduationCap,
   Home,
   Menu,
@@ -26,35 +27,84 @@ import type { Session } from "@/lib/gateway";
 
 import { BreadcrumbProvider, useBreadcrumb, type Crumb } from "./shell-breadcrumb";
 
+export type ShellArea = "admin" | "employee" | "manager";
+
 type NavItem = {
   href?: string;
   label: string;
   icon: LucideIcon;
 };
 
-const workspace: NavItem[] = [{ href: "/admin", label: "Home", icon: Home }];
+type NavGroupConfig = {
+  title: string;
+  items: NavItem[];
+};
 
-const skills: NavItem[] = [
-  { href: "/admin/role-profiles", label: "Role skills profiles", icon: Network },
-  { href: "/admin/role-profiles/review", label: "Review & Approvals", icon: CheckCheck },
-];
+type AreaConfig = {
+  kicker: string;
+  groups: NavGroupConfig[];
+  searchable: { href: string; label: string }[];
+};
 
-const later: NavItem[] = [
-  { label: "Skills Insights", icon: BarChart3 },
-  { label: "Learning & Development", icon: GraduationCap },
-  { label: "Employees", icon: Users },
-  { label: "Organisational Structure", icon: Building2 },
-  { label: "Settings", icon: Settings },
-];
-
-const searchable = [...workspace, ...skills].flatMap((item) => (item.href ? [{ href: item.href, label: item.label }] : []));
+const areaConfig: Record<ShellArea, AreaConfig> = {
+  admin: {
+    kicker: "Admin",
+    groups: [
+      { title: "Workspace", items: [{ href: "/admin", label: "Home", icon: Home }] },
+      {
+        title: "Skills management",
+        items: [
+          { href: "/admin/role-profiles", label: "Role skills profiles", icon: Network },
+          { href: "/admin/role-profiles/review", label: "Review & Approvals", icon: CheckCheck },
+        ],
+      },
+      {
+        title: "Coming soon",
+        items: [
+          { label: "Skills Insights", icon: BarChart3 },
+          { label: "Learning & Development", icon: GraduationCap },
+          { label: "Employees", icon: Users },
+          { label: "Organisational Structure", icon: Building2 },
+          { label: "Settings", icon: Settings },
+        ],
+      },
+    ],
+    searchable: [
+      { href: "/admin", label: "Home" },
+      { href: "/admin/role-profiles", label: "Role skills profiles" },
+      { href: "/admin/role-profiles/review", label: "Review & Approvals" },
+    ],
+  },
+  employee: {
+    kicker: "Capability",
+    groups: [
+      {
+        title: "Workspace",
+        items: [{ href: "/employee", label: "My capability", icon: ClipboardCheck }],
+      },
+    ],
+    searchable: [{ href: "/employee", label: "My capability" }],
+  },
+  manager: {
+    kicker: "Team",
+    groups: [
+      {
+        title: "Workspace",
+        items: [{ href: "/manager", label: "My team", icon: Users }],
+      },
+    ],
+    searchable: [{ href: "/manager", label: "My team" }],
+  },
+};
 
 export function AppShell({
+  area = "admin",
   session,
   notifications,
   notificationError = "",
   children,
 }: {
+  area?: ShellArea;
   session: Session;
   notifications: InboxItem[];
   notificationError?: string;
@@ -62,7 +112,12 @@ export function AppShell({
 }) {
   return (
     <BreadcrumbProvider>
-      <ShellFrame session={session} notifications={notifications} notificationError={notificationError}>
+      <ShellFrame
+        area={area}
+        session={session}
+        notifications={notifications}
+        notificationError={notificationError}
+      >
         {children}
       </ShellFrame>
     </BreadcrumbProvider>
@@ -70,11 +125,13 @@ export function AppShell({
 }
 
 function ShellFrame({
+  area,
   session,
   notifications,
   notificationError,
   children,
 }: {
+  area: ShellArea;
   session: Session;
   notifications: InboxItem[];
   notificationError: string;
@@ -85,8 +142,10 @@ function ShellFrame({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState(false);
   const role = accountLabel(session.roles);
-  const crumbs = useTrail(pathname);
+  const crumbs = useTrail(area, pathname);
   const navId = useId();
+  const config = areaConfig[area];
+  const heading = pageHeading(area, pathname);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -133,7 +192,7 @@ function ShellFrame({
   }, [drawerMode, mobileOpen]);
 
   return (
-    <div className="app-shell" data-collapsed={collapsed ? "true" : "false"} data-nav={mobileOpen ? "open" : "closed"}>
+    <div className="app-shell" data-collapsed={collapsed ? "true" : "false"} data-nav={mobileOpen ? "open" : "closed"} data-area={area}>
       <aside
         id={navId}
         className="app-sidebar"
@@ -148,9 +207,9 @@ function ShellFrame({
           <p className="app-brand-product">Learn</p>
         </div>
         <nav className="app-nav" aria-label="Sections">
-          <NavGroup title="Workspace" items={workspace} pathname={pathname} />
-          <NavGroup title="Skills management" items={skills} pathname={pathname} />
-          <NavGroup title="Coming soon" items={later} pathname={pathname} />
+          {config.groups.map((group) => (
+            <NavGroup key={group.title} title={group.title} items={group.items} pathname={pathname} />
+          ))}
         </nav>
         <div className="app-sidebar-foot">
           <button type="button" className="app-collapse" onClick={() => setCollapsed((value) => !value)} aria-pressed={collapsed}>
@@ -176,7 +235,7 @@ function ShellFrame({
             <span className="app-clip">{mobileOpen ? "Close navigation" : "Open navigation"}</span>
           </button>
           <Breadcrumb crumbs={crumbs} />
-          <PageSearch />
+          <PageSearch pages={config.searchable} />
           <div className="app-tools">
             <NotificationMenu items={notifications} error={notificationError} />
             <HelpMenu />
@@ -184,11 +243,13 @@ function ShellFrame({
           </div>
         </header>
         <div className="app-content">
-          <header className="app-page-header">
-            <p className="kicker">Admin</p>
-            <h1>{pageTitle(pathname)}</h1>
-            {pageDescription(pathname) ? <p className="app-page-description">{pageDescription(pathname)}</p> : null}
-          </header>
+          {heading ? (
+            <header className="app-page-header">
+              <p className="kicker">{heading.kicker}</p>
+              <h1>{heading.title}</h1>
+              {heading.description ? <p className="app-page-description">{heading.description}</p> : null}
+            </header>
+          ) : null}
           {children}
         </div>
       </div>
@@ -247,12 +308,12 @@ function Breadcrumb({ crumbs }: { crumbs: Crumb[] }) {
   );
 }
 
-function PageSearch() {
+function PageSearch({ pages }: { pages: { href: string; label: string }[] }) {
   const router = useRouter();
   const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const matches = searchable.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const matches = pages.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
   const visible = open && query.trim().length > 0;
 
   return (
@@ -275,8 +336,8 @@ function PageSearch() {
           value={query}
           placeholder="Search pages"
           aria-label="Search pages"
-          aria-expanded={visible}
-          aria-controls={listId}
+          aria-controls={visible ? listId : undefined}
+          aria-autocomplete="list"
           onChange={(event) => {
             setQuery(event.target.value);
             setOpen(true);
@@ -427,10 +488,22 @@ function MenuButton({
   );
 }
 
-function useTrail(pathname: string): Crumb[] {
+function useTrail(area: ShellArea, pathname: string): Crumb[] {
   const extra = useBreadcrumb();
   if (extra.length > 0) {
     return extra;
+  }
+  if (area === "employee") {
+    return [{ label: "My capability" }];
+  }
+  if (area === "manager") {
+    if (pathname.startsWith("/manager/people/")) {
+      return [
+        { href: "/manager", label: "My team" },
+        { label: "Team member" },
+      ];
+    }
+    return [{ label: "My team" }];
   }
   if (pathname.startsWith("/admin/role-profiles/review")) {
     return [
@@ -454,24 +527,48 @@ function currentLink(pathname: string, href: string): boolean {
   if (href === "/admin/role-profiles") {
     return pathname.startsWith("/admin/role-profiles") && !pathname.startsWith("/admin/role-profiles/review");
   }
+  if (href === "/employee") {
+    return pathname === "/employee" || pathname.startsWith("/employee/");
+  }
+  if (href === "/manager") {
+    return pathname === "/manager" || pathname.startsWith("/manager/");
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function pageTitle(pathname: string): string {
+function pageHeading(area: ShellArea, pathname: string): { kicker: string; title: string; description: string } | null {
+  if (area === "employee") {
+    return {
+      kicker: "Capability",
+      title: "My capability",
+      description: "Complete assigned assessments, review your levels, and record self-assessment evidence.",
+    };
+  }
+  if (area === "manager") {
+    if (pathname.startsWith("/manager/people/")) {
+      return {
+        kicker: "Team",
+        title: "Team member",
+        description: "Review capability gaps, confirm proposals, and record manager assessments.",
+      };
+    }
+    return {
+      kicker: "Team",
+      title: "My team",
+      description: "See who reports into you and open a person record to review capability.",
+    };
+  }
   if (pathname.startsWith("/admin/role-profiles/review")) {
-    return "Review & Approvals";
+    return {
+      kicker: "Admin",
+      title: "Review & Approvals",
+      description: "Manage submitted role skills profiles and configure approval workflows.",
+    };
   }
   if (pathname.startsWith("/admin/role-profiles")) {
-    return "Role skills profiles";
+    return { kicker: "Admin", title: "Role skills profiles", description: "" };
   }
-  return "Home";
-}
-
-function pageDescription(pathname: string): string {
-  if (pathname.startsWith("/admin/role-profiles/review")) {
-    return "Manage submitted role skills profiles and configure approval workflows.";
-  }
-  return "";
+  return { kicker: "Admin", title: "Home", description: "" };
 }
 
 function accountLabel(roles: readonly string[]): string {
