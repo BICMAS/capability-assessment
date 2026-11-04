@@ -4,6 +4,7 @@
 @import "../styles/home.css";
 @import "../styles/role-workspace.css";
 @import "../styles/employee.css";
+@import "../styles/manager.css";
 
 :root {
   color: var(--ink);
@@ -135,6 +136,16 @@ input[type="file"]::file-selector-button {
 
 :focus:not(:focus-visible) {
   outline: none;
+}
+
+.entrance {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  padding: 1.5rem;
+  box-sizing: border-box;
 }
 
 .entrance-frame {

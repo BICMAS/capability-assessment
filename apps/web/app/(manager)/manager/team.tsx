@@ -1,37 +1,13 @@
 import type { FrameworkVersion } from "@/lib/capability-framework";
 import { readLevel, type Explanation } from "@/lib/generated/assessment-gap/levels";
 
+import { capabilitiesFor, gapBand, type TeamCapability } from "@/features/manager/capability";
+
 import { saveManagerAssessment } from "./actions";
 
-export type TeamCapability = {
-  name: string;
-  capabilityCode: string;
-  frameworkVersionId: string;
-  requiredLevel: number;
-  explanation: Explanation | null;
-};
+export type { TeamCapability };
 
 type AssessedCapability = TeamCapability & { explanation: Explanation };
-
-export function TeamRow({
-  personId,
-  personName,
-  roles,
-  capabilities,
-}: {
-  personId: string;
-  personName: string;
-  roles: string[];
-  capabilities: TeamCapability[];
-}) {
-  return (
-    <a className="team-row" href={`/manager/people/${personId}`}>
-      <span className="team-name">{personName}</span>
-      <span className="status-pill">{roles.join(", ") || "No role recorded"}</span>
-      <span className="team-summary">{teamSummary(capabilities)}</span>
-    </a>
-  );
-}
 
 export function PersonRecord({
   personId,
@@ -149,19 +125,6 @@ function LevelFigures({ capability }: { capability: AssessedCapability }) {
   );
 }
 
-function teamSummary(capabilities: TeamCapability[]): string {
-  const assessed = capabilities.some((capability) => capability.explanation !== null);
-  if (!assessed) {
-    return "Not yet assessed";
-  }
-  const below = capabilities.filter((capability) => isBand("developing")(capability) || isBand("priority")(capability));
-  if (below.length === 0) {
-    return "No capabilities below the required level";
-  }
-  const count = below.length === 1 ? "1 capability below the required level" : `${below.length} capabilities below the required level`;
-  return `${count}: ${below.map((capability) => capability.name).join(", ")}`;
-}
-
 function isBand(band: "strength" | "developing" | "priority") {
   return (item: TeamCapability): item is AssessedCapability => item.explanation !== null && gapBand(item.explanation.gap) === band;
 }
@@ -175,16 +138,6 @@ function gapTone(gap: string): string {
     return "tone-gap";
   }
   return "";
-}
-
-function gapBand(gap: string): "strength" | "developing" | "priority" {
-  if (gap.startsWith("-") || gap === "0.0") {
-    return "strength";
-  }
-  if (gap.startsWith("0.")) {
-    return "developing";
-  }
-  return "priority";
 }
 
 export async function loadCapabilities(
@@ -216,25 +169,4 @@ export async function loadCapabilities(
   return loaded.flat();
 }
 
-export function capabilitiesFor(
-  framework: FrameworkVersion,
-  roleTitles: Set<string>,
-  explanations: Map<string, Explanation | null>,
-): TeamCapability[] {
-  return framework.requirements.flatMap((requirement) => {
-    const role = framework.roles.find((item) => item.id === requirement.roleId);
-    const capability = framework.capabilities.find((item) => item.id === requirement.capabilityId);
-    if (!role || !capability || !roleTitles.has(role.name)) {
-      return [];
-    }
-    return [
-      {
-        name: capability.name,
-        capabilityCode: capability.id,
-        frameworkVersionId: framework.id,
-        requiredLevel: requirement.requiredLevel,
-        explanation: explanations.get(capability.id) ?? null,
-      },
-    ];
-  });
-}
+export { capabilitiesFor, gapBand, teamSummary } from "@/features/manager/capability";
