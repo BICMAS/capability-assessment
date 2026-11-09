@@ -11,6 +11,8 @@ scripts/ci/node_modules/
 scripts/ci/package.json
 scripts/ci/package-lock.json
 
+.cursor/
+
 # Next.js local secrets (.env does not match these)
 .env*.local
 
